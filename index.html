@@ -106,6 +106,36 @@ button.btn.del{background:var(--bad);color:#fff;box-shadow:none}
 .ccbar>i{display:block;height:100%;background:#fff;border-radius:99px;transition:width .5s cubic-bezier(.32,.72,0,1)}
 .swatch{width:40px;height:40px;padding:0!important;border-radius:50%!important;border:2px solid transparent}
 .swatch.on{border-color:var(--txt)}
+
+/* consultor em chat: bolha flutuante + tela cheia */
+.fabChat{bottom:calc(166px + env(safe-area-inset-bottom));width:50px;height:50px;background:linear-gradient(165deg,#9a6bf0,#6d28d9);box-shadow:0 8px 24px -4px rgba(109,40,217,.55),inset 0 1px 0 rgba(255,255,255,.5)}
+.fabChat svg{width:22px;height:22px}
+.fabChat.badge::after{content:"";position:absolute;top:3px;right:3px;width:11px;height:11px;border-radius:50%;background:var(--bad);border:2px solid var(--bg)}
+.chatOverlay{position:fixed;inset:0;background:var(--bg);z-index:11;display:flex;flex-direction:column;opacity:0;transform:translateY(16px);transition:opacity .28s cubic-bezier(.32,.72,0,1),transform .28s cubic-bezier(.32,.72,0,1);padding-top:env(safe-area-inset-top)}
+.chatOverlay.show{opacity:1;transform:translateY(0)}
+.chatHead{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--card2);flex-shrink:0}
+.chatTitle{font-size:17px;font-weight:700;display:flex;align-items:center;gap:8px;color:#9a6bf0}
+.chatHead .x{position:static;float:none;font-size:24px;margin:0}
+.chatMsgs{flex:1;overflow-y:auto;padding:14px 16px;display:flex;flex-direction:column;gap:10px;scroll-behavior:smooth}
+.chatRow{display:flex;flex-direction:column;max-width:82%}
+.chatRow.mine{align-self:flex-end;align-items:flex-end}
+.chatRow.theirs{align-self:flex-start;align-items:flex-start}
+.chatRow.ia{align-self:flex-start;flex-direction:row;align-items:flex-end;gap:6px;max-width:88%}
+.chatAutor{font-size:11px;color:var(--mut);margin:0 4px 2px}
+.chatBubble{padding:10px 14px;border-radius:18px;font-size:15px;line-height:1.35;white-space:pre-wrap;word-break:break-word}
+.chatBubble.mine{background:linear-gradient(165deg, color-mix(in srgb, var(--acc) 85%, white 15%), var(--acc));color:var(--accink);border-bottom-right-radius:5px}
+.chatBubble.theirs{background:var(--card2);color:var(--txt);border-bottom-left-radius:5px}
+.chatBubble.ia{background:rgba(154,107,240,.14);color:var(--txt);border-bottom-left-radius:5px}
+.chatIaIc{color:#9a6bf0;flex-shrink:0;margin-bottom:4px}
+.chatInputBar{display:flex;gap:8px;align-items:center;padding:10px 14px calc(14px + env(safe-area-inset-bottom));border-top:1px solid var(--card2);background:var(--bg);flex-shrink:0}
+.chatInputBar input{margin:0;flex:1}
+.chatSend{width:44px;height:44px;flex-shrink:0;border-radius:50%;background:linear-gradient(165deg,#9a6bf0,#6d28d9);color:#fff;border:0;display:flex;align-items:center;justify-content:center;transition:transform .22s var(--bounce)}
+.chatSend:active{transform:scale(.88)}
+.chatTyping{display:flex;gap:4px;padding:10px 14px}
+.chatTyping span{width:6px;height:6px;border-radius:50%;background:var(--mut);animation:typingDot 1s infinite ease-in-out}
+.chatTyping span:nth-child(2){animation-delay:.15s}
+.chatTyping span:nth-child(3){animation-delay:.3s}
+@keyframes typingDot{0%,80%,100%{opacity:.3;transform:translateY(0)}40%{opacity:1;transform:translateY(-3px)}}
 </style>
 </head>
 <body>
@@ -135,12 +165,15 @@ button.btn.del{background:var(--bad);color:#fff;box-shadow:none}
 <symbol id="i-relogio" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></symbol>
 <symbol id="i-ok" viewBox="0 0 24 24"><path d="M4 12.5l5 5L20 7"/></symbol>
 <symbol id="i-dinheiro" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v10"/><path d="M14.5 9.3c0-1-1.1-1.8-2.5-1.8s-2.7.8-2.7 2 1.2 1.6 2.7 2 2.7.9 2.7 2.1-1.2 2-2.7 2-2.5-.8-2.5-1.9"/></symbol>
+<symbol id="i-chat" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="13" rx="4"/><path d="M7 17v3l4-3"/><circle cx="8" cy="10.5" r="1" fill="currentColor" stroke="none"/><circle cx="12" cy="10.5" r="1" fill="currentColor" stroke="none"/><circle cx="16" cy="10.5" r="1" fill="currentColor" stroke="none"/></symbol>
+<symbol id="i-enviar" viewBox="0 0 24 24"><path d="M4 12h15M13 6l6 6-6 6"/></symbol>
 <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
 </svg>
 
 <div class="wrap" id="app"></div>
 <div class="scrimbottom"></div>
 <button class="fab" id="fab" aria-label="Adicionar"><svg><use href="#i-plus"/></svg></button>
+<button class="fab fabChat" id="fabChat" aria-label="Consultor IA" onclick="haptic();abrirChat()"><svg><use href="#i-chat"/></svg></button>
 <nav>
   <span class="navind" id="navind"></span>
   <button data-t="hoje" class="on"><svg class="ic"><use href="#i-home"/></svg>Hoje</button>
@@ -164,7 +197,7 @@ const FIREBASE_CFG={apiKey:"AIzaSyCIKXGNO5PSn5P2BYAiqLDZiC-uIAYfYgI",authDomain:
    chave do Gemini em segredo no servidor e só aceita pedidos vindos deste
    site (checa a origem). O app nunca vê a chave real. */
 const IA_PROXY_URL="https://financas-casal-ia.supleki-api.workers.dev";
-const def={tx:[],orc:{},fixos:[],salario:0,rendas:[],metas:[],cartoes:[],distribuicao:[],mudanca:null};
+const def={tx:[],orc:{},fixos:[],salario:0,rendas:[],metas:[],cartoes:[],distribuicao:[],mudanca:null,chat:[]};
 let S=load();
 function load(){try{return Object.assign({},def,JSON.parse(localStorage.getItem(KEY)||'{}'))}catch(e){return {...def}}}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
@@ -217,7 +250,7 @@ async function conectarCloud(cfg){
   if(pendingCloudSync){pendingCloudSync=false;sincronizarLocalParaCloud()}
 }
 function sincronizarLocalParaCloud(){
-  ['tx','fixos','metas','cartoes','rendas'].forEach(col=>{S[col].forEach(item=>cloudUpsert(col,item))});
+  ['tx','fixos','metas','cartoes','rendas','chat'].forEach(col=>{S[col].forEach(item=>cloudUpsert(col,item))});
   cloudSaveConfig();
 }
 function pararListeners(){cloudListeners.forEach(u=>{try{u()}catch(e){}});cloudListeners=[]}
@@ -232,7 +265,7 @@ function ligarListeners(){
       recomputeOrcFromDistribuicao();save();render();
     }
   }));
-  ['tx','fixos','metas','cartoes','rendas'].forEach(col=>{
+  ['tx','fixos','metas','cartoes','rendas','chat'].forEach(col=>{
     cloudListeners.push(FS.onSnapshot(FS.collection(db,'casais',codigo,col),snap=>{
       const arr=[];snap.forEach(d=>arr.push({id:d.id,...d.data()}));
       S[col]=arr;save();render();
@@ -414,6 +447,21 @@ function resumoParaIA(k){
   return{gastoTotal:t.gasto,rendaTotal:t.renda,saldo:t.saldo,gastoPorCategoria:t.porCat,gastoMesPassado:ant.gasto,gastoPorCategoriaMesPassado:ant.porCat,tetosDefinidos:S.orc};
 }
 function chaveInsightIA(k){return k+'|'+JSON.stringify(resumoParaIA(k))}
+/* chama o proxy com o "pensamento" do modelo desligado (thinkingBudget:0):
+   sem isso o Gemini demora dezenas de segundos até pra responder "ok", o
+   que não dá pro chat nem pros conselhos. Aborta sozinho se travar. */
+async function chamarIA(body,timeoutMs=20000){
+  const ctrl=new AbortController();
+  const t=setTimeout(()=>ctrl.abort(),timeoutMs);
+  try{
+    const resp=await fetch(IA_PROXY_URL,{
+      method:'POST',headers:{'Content-Type':'application/json'},signal:ctrl.signal,
+      body:JSON.stringify({generationConfig:{thinkingConfig:{thinkingBudget:0}},...body})
+    });
+    const data=await resp.json();
+    return data?.candidates?.[0]?.content?.parts?.[0]?.text||null;
+  }finally{clearTimeout(t)}
+}
 async function gerarInsightIA(k){
   const chave=chaveInsightIA(k);
   if(iaCache[chave]!==undefined)return{texto:iaCache[chave],chave};
@@ -421,12 +469,7 @@ async function gerarInsightIA(k){
   iaPendente[chave]=true;
   const resumo=resumoParaIA(k);
   try{
-    const resp=await fetch(IA_PROXY_URL,{
-      method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({contents:[{parts:[{text:`Você é um consultor financeiro direto, simpático e bem casual, escrevendo em português do Brasil pra um casal que divide as contas. Os campos a seguir são do MÊS ATUAL, já em andamento: gastoTotal, rendaTotal, saldo, gastoPorCategoria, tetosDefinidos. Os campos gastoMesPassado e gastoPorCategoriaMesPassado são só pra efeito de comparação com o mês anterior (se vierem zerados ou vazios, é porque o app é novo, não comente sobre isso). Dados (JSON, valores em reais): ${JSON.stringify(resumo)}. Em até 2 frases curtas, comente o que mais chama atenção no mês ATUAL (sem repetir os números crus) e dê uma dica prática e específica pro resto do mês ou pro próximo. Não use saudação nem se apresente, vá direto ao comentário.`}]}]})
-    });
-    const data=await resp.json();
-    const texto=data?.candidates?.[0]?.content?.parts?.[0]?.text;
+    const texto=await chamarIA({contents:[{parts:[{text:`Você é um consultor financeiro direto, simpático e bem casual, escrevendo em português do Brasil pra um casal que divide as contas. Os campos a seguir são do MÊS ATUAL, já em andamento: gastoTotal, rendaTotal, saldo, gastoPorCategoria, tetosDefinidos. Os campos gastoMesPassado e gastoPorCategoriaMesPassado são só pra efeito de comparação com o mês anterior (se vierem zerados ou vazios, é porque o app é novo, não comente sobre isso). Dados (JSON, valores em reais): ${JSON.stringify(resumo)}. Em até 2 frases curtas, comente o que mais chama atenção no mês ATUAL (sem repetir os números crus) e dê uma dica prática e específica pro resto do mês ou pro próximo. Não use saudação nem se apresente, vá direto ao comentário.`}]}]});
     iaCache[chave]=texto?texto.trim():null;
   }catch(e){
     console.error('[ia]',e);
@@ -434,6 +477,86 @@ async function gerarInsightIA(k){
   }
   delete iaPendente[chave];
   return{texto:iaCache[chave],chave};
+}
+
+/* ---------- consultor em chat (shared, sincronizado por Firebase) ----------
+   Cada mensagem é um item igual aos outros (vira doc em casais/{codigo}/chat),
+   então já chega em tempo real nos dois aparelhos pelo mesmo listener. Quem
+   manda a pergunta é quem busca a resposta da IA (sem fila/lock: não tem como
+   dar resposta duplicada, porque cada mensagem só é respondida por quem a
+   enviou). */
+let chatAberto=false,chatEnviando=false;
+function chatOrdenado(){return[...S.chat].sort((a,b)=>a.data-b.data)}
+function construirSystemPromptChat(){
+  const r=resumoParaIA(mesRef);
+  const rendas=S.rendas.map(x=>`${x.desc} (${esc(x.autor||'sem nome')}): ${R(x.valor)}`).join('; ')||'nenhuma';
+  const metas=S.metas.map(m=>`${m.nome}: ${R(m.atual)} de ${R(m.alvo)}`).join('; ')||'nenhuma';
+  return `Você é um consultor financeiro direto, simpático e bem casual, batendo papo em português do Brasil num chat compartilhado entre um casal que divide as contas. Os dois podem escrever nesse mesmo chat; cada mensagem de usuário vem prefixada com o nome de quem escreveu. Use os dados reais abaixo pra responder dúvidas e dar conselhos, sem inventar números. Mês atual (R$): gasto total ${r.gastoTotal}, renda total ${r.rendaTotal}, saldo ${r.saldo}, gasto por categoria ${JSON.stringify(r.gastoPorCategoria)}, tetos definidos ${JSON.stringify(r.tetosDefinidos)}. Rendas recorrentes: ${rendas}. Metas: ${metas}. Responda curto (até 3-4 frases), sem saudação nem se apresentar, direto ao ponto.`;
+}
+function abrirChat(){
+  chatAberto=true;
+  const overlay=document.createElement('div');
+  overlay.className='chatOverlay';
+  overlay.id='chatOverlay';
+  overlay.innerHTML=`<div class="chatHead"><div class="chatTitle">${ic('ia',20)} Consultor IA</div><button class="x" onclick="fecharChat()">×</button></div>
+  <div class="chatMsgs" id="chatMsgs"></div>
+  <div class="chatInputBar"><input id="chatInput" placeholder="Pergunte sobre as finanças de vocês..." maxlength="500" onkeydown="if(event.key==='Enter'){event.preventDefault();enviarChat()}"><button class="chatSend" onclick="enviarChat()">${ic('enviar',18)}</button></div>`;
+  document.body.appendChild(overlay);
+  requestAnimationFrame(()=>overlay.classList.add('show'));
+  renderChatMsgs();
+  atualizarChatBadge();
+  document.getElementById('chatInput').focus();
+}
+function fecharChat(){
+  chatAberto=false;
+  const overlay=document.getElementById('chatOverlay');
+  if(overlay){overlay.classList.remove('show');setTimeout(()=>overlay.remove(),260)}
+}
+function renderChatMsgs(){
+  const box=document.getElementById('chatMsgs');
+  if(!box)return;
+  const meu=cloudCfg?.nome||null;
+  const lista=chatOrdenado();
+  const pertoDoFim=box.scrollHeight-box.scrollTop-box.clientHeight<80;
+  let h=lista.map(m=>{
+    if(m.role==='ia')return `<div class="chatRow ia"><span class="chatIaIc">${ic('ia',16)}</span><div class="chatBubble ia">${esc(m.texto)}</div></div>`;
+    const mine=m.autor===meu;
+    return `<div class="chatRow ${mine?'mine':'theirs'}">${!mine&&m.autor?`<div class="chatAutor">${esc(m.autor)}</div>`:''}<div class="chatBubble ${mine?'mine':'theirs'}">${esc(m.texto)}</div></div>`;
+  }).join('');
+  if(chatEnviando)h+=`<div class="chatRow ia"><span class="chatIaIc">${ic('ia',16)}</span><div class="chatTyping"><span></span><span></span><span></span></div></div>`;
+  box.innerHTML=h||'<div class="empty">Manda uma pergunta pra IA sobre as finanças de vocês.</div>';
+  if(pertoDoFim)box.scrollTop=box.scrollHeight;
+  if(chatAberto){const u=lista[lista.length-1];if(u)localStorage.setItem('financas.chatSeen',String(u.id))}
+}
+function atualizarChatBadge(){
+  const btn=document.getElementById('fabChat');
+  if(!btn)return;
+  const ultimo=chatOrdenado().slice(-1)[0];
+  const visto=localStorage.getItem('financas.chatSeen');
+  btn.classList.toggle('badge',!chatAberto&&!!ultimo&&String(ultimo.id)!==visto);
+}
+async function enviarChat(){
+  const inp=document.getElementById('chatInput');
+  const texto=inp.value.trim();
+  if(!texto||chatEnviando)return;
+  inp.value='';
+  upsertItem('chat',{id:uid(),autor:cloudCfg?.nome||null,texto,role:'user',data:Date.now()});
+  renderChatMsgs();
+  haptic(6);
+  chatEnviando=true;renderChatMsgs();
+  try{
+    const historico=chatOrdenado().slice(-12);
+    const texto2=await chamarIA({
+      systemInstruction:{parts:[{text:construirSystemPromptChat()}]},
+      contents:historico.map(m=>({role:m.role==='ia'?'model':'user',parts:[{text:m.role==='ia'?m.texto:`${m.autor||'Pessoa'}: ${m.texto}`}]}))
+    },25000);
+    upsertItem('chat',{id:uid(),autor:'IA',texto:texto2?texto2.trim():'Não consegui responder agora. Tenta de novo em instantes.',role:'ia',data:Date.now()});
+  }catch(e){
+    console.error('[chat-ia]',e);
+    upsertItem('chat',{id:uid(),autor:'IA',texto:'Não consegui responder agora. Confira sua internet e tenta de novo.',role:'ia',data:Date.now()});
+  }
+  chatEnviando=false;
+  renderChatMsgs();
 }
 
 /* ---------- cartões: ciclo de fatura ---------- */
@@ -501,6 +624,8 @@ function render(){
       if(el)el.innerHTML=`<div class="card" style="background:rgba(10,132,255,.12);display:flex;gap:10px;align-items:flex-start"><span style="flex-shrink:0;color:var(--acc)">${ic('ia',19)}</span><span style="font-size:13px;line-height:1.4">${esc(r.texto)}</span></div>`;
     });
   }
+  atualizarChatBadge();
+  if(chatAberto)renderChatMsgs();
 }
 function atualizarIndicadorNav(){
   const btn=document.querySelector(`nav button[data-t="${tab}"]`);

@@ -140,7 +140,7 @@ const CARD_COLORS=[['#6c6cf2','#3b2fb0'],['#38bdf8','#0369a1'],['#34d399','#0478
    pensada pra ir embutida no app; quem protege os dados são as regras do
    Firestore). Embutida aqui pra quem conectar não precisar colar nada. */
 const FIREBASE_CFG={apiKey:"AIzaSyCIKXGNO5PSn5P2BYAiqLDZiC-uIAYfYgI",authDomain:"financas-casal-5faea.firebaseapp.com",projectId:"financas-casal-5faea",storageBucket:"financas-casal-5faea.firebasestorage.app",messagingSenderId:"30626929484",appId:"1:30626929484:web:ca608fa5e1240a3e340de9"};
-const def={tx:[],orc:{},fixos:[],salario:0,metas:[],cartoes:[],distribuicao:[]};
+const def={tx:[],orc:{},fixos:[],salario:0,metas:[],cartoes:[],distribuicao:[],mudanca:null};
 let S=load();
 function load(){try{return Object.assign({},def,JSON.parse(localStorage.getItem(KEY)||'{}'))}catch(e){return {...def}}}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
@@ -157,6 +157,7 @@ function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;',
 function catIcon(n){const c=CATS.find(c=>c[1]===n);return c?c[0]:'📦'}
 function nomeMes(k){const[y,m]=k.split('-').map(Number);const s=new Date(y,m-1,1).toLocaleDateString('pt-BR',{month:'long',year:'numeric'});return s.charAt(0).toUpperCase()+s.slice(1)}
 function addMes(k,n){const[y,m]=k.split('-').map(Number);return mesKey(new Date(y,m-1+n,1))}
+function mesesEntre(a,b){const[ay,am]=a.split('-').map(Number),[by,bm]=b.split('-').map(Number);return(by-ay)*12+(bm-am)}
 function haptic(ms=10){try{navigator.vibrate&&navigator.vibrate(ms)}catch(e){}}
 function flashSucesso(){
   const el=document.createElement('div');
@@ -200,7 +201,7 @@ function ligarListeners(){
   const codigo=cloudCfg.codigo;
   cloudListeners.push(FS.onSnapshot(FS.doc(db,'casais',codigo),snap=>{
     const d=snap.data();
-    if(d){S.salario=d.salario||0;S.orc=d.orc||{};S.distribuicao=d.distribuicao||[];recomputeOrcFromDistribuicao();save();render();}
+    if(d){S.salario=d.salario||0;S.orc=d.orc||{};S.distribuicao=d.distribuicao||[];S.mudanca=d.mudanca||null;recomputeOrcFromDistribuicao();save();render();}
   }));
   ['tx','fixos','metas','cartoes'].forEach(col=>{
     cloudListeners.push(FS.onSnapshot(FS.collection(db,'casais',codigo,col),snap=>{
@@ -221,7 +222,7 @@ function cloudRemove(col,id){
 }
 function cloudSaveConfig(){
   if(!cloudOn()){if(cloudCfg)pendingCloudSync=true;return}
-  FS.setDoc(FS.doc(db,'casais',cloudCfg.codigo),{salario:S.salario,orc:S.orc,distribuicao:S.distribuicao},{merge:true}).catch(e=>console.error('[cloud]',e));
+  FS.setDoc(FS.doc(db,'casais',cloudCfg.codigo),{salario:S.salario,orc:S.orc,distribuicao:S.distribuicao,mudanca:S.mudanca},{merge:true}).catch(e=>console.error('[cloud]',e));
 }
 function upsertItem(colKey,item){
   const arr=S[colKey];
@@ -318,6 +319,45 @@ function podeGastarHoje(k){
 }
 function cor(p){return p>=100?'var(--bad)':p>=80?'var(--warn)':'var(--ok)'}
 
+/* ---------- insights: "consultor financeiro" por regras ----------
+   Nada de IA aqui — só comparações com o mês anterior e com os tetos.
+   Dá pra trocar/complementar por um modelo de IA de verdade depois: é só
+   mandar esses mesmos números pra API de um modelo (ex.: Gemini, que tem
+   nível grátis) e pedir pra ele escrever o comentário em vez da regra fixa. */
+function gerarInsights(k){
+  const t=totais(k),ant=totais(addMes(k,-1)),p=podeGastarHoje(k);
+  const out=[];
+  if(t.saldo<0){
+    out.push({tone:'warn',icon:'📉',texto:`Saldo negativo este mês: ${R(t.saldo)}. Os gastos já passaram as entradas.`});
+  }
+  let maiorCresceu=null;
+  Object.keys(t.porCat).forEach(c=>{
+    const delta=(t.porCat[c]||0)-(ant.porCat[c]||0);
+    if(delta>=30&&(!maiorCresceu||delta>maiorCresceu.delta))maiorCresceu={cat:c,delta,de:ant.porCat[c]||0,para:t.porCat[c]};
+  });
+  if(maiorCresceu){
+    out.push({tone:'warn',icon:'📈',texto:`${catIcon(maiorCresceu.cat)} ${maiorCresceu.cat} subiu ${R(maiorCresceu.delta)} em relação ao mês passado (${R(maiorCresceu.de)} → ${R(maiorCresceu.para)}).`});
+  }
+  Object.entries(t.porCat).forEach(([c,v])=>{
+    const teto=+S.orc[c]||0;if(!teto)return;
+    const pc=v/teto*100;
+    if(pc>=100)out.push({tone:'warn',icon:'🚨',texto:`${catIcon(c)} ${c} já passou do teto: ${R(v)} de ${R(teto)}.`});
+    else if(pc>=90)out.push({tone:'info',icon:'🔶',texto:`${catIcon(c)} ${c} está em ${Math.round(pc)}% do teto (${R(v)} de ${R(teto)}).`});
+  });
+  if(p.base>0){
+    const diasMes=diasNoMes(k),diasPassados=Math.max(1,diasMes-p.dias+1);
+    const pctDias=diasPassados/diasMes*100,pctGasto=Math.min(t.gasto/p.base*100,999);
+    if(pctGasto-pctDias>=20){
+      out.push({tone:'warn',icon:'⏱️',texto:`Já foram ${Math.round(pctGasto)}% do orçamento gastos, mas só ${Math.round(pctDias)}% do mês passou — ritmo acelerado.`});
+    }
+  }
+  if(ant.gasto>0&&t.gasto>0&&t.gasto<ant.gasto*0.9){
+    out.push({tone:'ok',icon:'✅',texto:`Você gastou ${Math.round((1-t.gasto/ant.gasto)*100)}% a menos que o mês passado. Mandou bem!`});
+  }
+  const ordem={warn:0,info:1,ok:2};
+  return out.sort((a,b)=>ordem[a.tone]-ordem[b.tone]).slice(0,3);
+}
+
 /* ---------- cartões: ciclo de fatura ---------- */
 function diaFechamento(c){return Math.min(Math.max(+c.fechamento||1,1),31)}
 function fecharData(c,y,m){
@@ -413,10 +453,13 @@ function vHoje(){
     h+=`<div class="item"><div class="row"><span>${catIcon(c)} ${esc(c)}</span><b class="tabular">${R(v)}</b></div>${teto?`<div class="bar"><i style="width:${Math.min(pc,100)}%;background:${cor(pc)}"></i></div><div class="mut" style="margin-top:4px">${Math.round(pc)}% de ${R(teto)}</div>`:''}</div>`;
   });
   h+='</div>';
-  const ant=totais(addMes(mesRef,-1));
-  if(ant.gasto>0&&t.gasto>0){
-    const dif=t.gasto-ant.gasto;
-    h+=`<div class="card mut">Mês anterior: ${R(ant.gasto)} gastos. ${dif>0?`Você está <b class="neg">${R(dif)} acima</b>`:`Você está <b class="pos">${R(-dif)} abaixo</b>`} (mês ainda em andamento pode distorcer).</div>`;
+  const insights=gerarInsights(mesRef);
+  if(insights.length){
+    h+='<h2>Conselhos do mês</h2>';
+    insights.forEach(ins=>{
+      const bg=ins.tone==='warn'?'rgba(255,69,58,.12)':ins.tone==='ok'?'rgba(48,209,88,.12)':'rgba(255,159,10,.12)';
+      h+=`<div class="card" style="background:${bg};display:flex;gap:10px;align-items:flex-start"><span style="font-size:18px;line-height:1">${ins.icon}</span><span style="font-size:13px;line-height:1.4">${ins.texto}</span></div>`;
+    });
   }
   return h;
 }
@@ -478,6 +521,22 @@ function vMais(){
   }else{
     h+=`<div class="mut" style="margin-bottom:10px">Conecte este aparelho ao do seu par pra ver os mesmos lançamentos em tempo real nos dois celulares.</div>
     <button class="btn" onclick="abrirConectarCasal()">Conectar com meu par</button>`;
+  }
+  h+='</div>';
+  h+='<h2>Plano: morar juntos</h2><div class="card">';
+  if(S.mudanca){
+    const mu=S.mudanca;
+    const meses=Math.max(1,mesesEntre(mesKey(new Date()),mu.dataAlvo));
+    const custoMensal=(+mu.aluguel||0)+(+mu.contas||0);
+    const porMes=(+mu.custoInicial||0)/meses;
+    const meta=S.metas.find(m=>m.id===mu.metaId);
+    h+=`<div class="mut">Morando juntos, o custo fixo estimado é <b>${R(custoMensal)}/mês</b> (aluguel + contas).</div>
+    <div class="mut" style="margin-top:8px">Pra juntar ${R(+mu.custoInicial||0)} até ${nomeMes(mu.dataAlvo)}, guardem <b>${R(porMes)}/mês</b> (${R(porMes/2)} cada).</div>
+    ${meta?`<div class="mut" style="margin-top:8px">Ligado à meta "${esc(meta.nome)}": ${R(meta.atual)} / ${R(meta.alvo)}</div>`:''}
+    <button class="btn sec" style="margin-top:10px" onclick="abrirSimuladorMudanca()">Editar simulação</button>`;
+  }else{
+    h+=`<div class="mut" style="margin-bottom:10px">Simule quanto guardar por mês pra sair do aluguel de cada um e morarem juntos.</div>
+    <button class="btn" onclick="abrirSimuladorMudanca()">Simular plano de morar juntos</button>`;
   }
   h+='</div>';
   h+=`<h2>Renda</h2><div class="card" onclick="editarSalario()"><div class="row"><span>Salário mensal</span><b>${S.salario?R(S.salario):'definir'}</b></div></div>`;
@@ -612,6 +671,49 @@ function aportarMeta(id,valor){
   m.atual=(m.atual||0)+valor;
   upsertItem('metas',m);
   haptic();flashSucesso();render();
+}
+
+/* ---------- simulador de morar juntos ---------- */
+function abrirSimuladorMudanca(){
+  const mu=S.mudanca||{};
+  const proxMes=addMes(mesKey(new Date()),6);
+  abrir(`<h1>Morar juntos</h1>
+  <div class="mut" style="margin-bottom:10px">Custos de quando estiverem morando juntos</div>
+  <input id="mua" inputmode="decimal" placeholder="Aluguel estimado (R$/mês)" value="${mu.aluguel||''}">
+  <input id="muc" inputmode="decimal" placeholder="Contas e mercado estimados (R$/mês)" value="${mu.contas||''}">
+  <div class="mut" style="margin-bottom:6px">Pra começar (depósito, móveis, mudança)</div>
+  <input id="mui" inputmode="decimal" placeholder="Custo inicial (R$)" value="${mu.custoInicial||''}">
+  <div class="mut" style="margin-bottom:6px">Quando querem se mudar</div>
+  <input id="mud" type="month" value="${mu.dataAlvo||proxMes}">
+  <button class="btn" onclick="salvarSimuladorMudanca()">Calcular e criar meta</button>
+  ${S.mudanca?'<button class="btn del" onclick="apagarSimuladorMudanca()">Apagar simulação</button>':''}`);
+}
+function salvarSimuladorMudanca(){
+  const aluguel=numLivre(document.getElementById('mua').value)||0;
+  const contas=numLivre(document.getElementById('muc').value)||0;
+  const custoInicial=numLivre(document.getElementById('mui').value)||0;
+  const dataAlvo=document.getElementById('mud').value;
+  if(!(custoInicial>0)||!dataAlvo){haptic(20);return}
+  const metaIdAntigo=S.mudanca?.metaId;
+  const metaExistente=metaIdAntigo&&S.metas.find(m=>m.id===metaIdAntigo);
+  const meta={id:metaExistente?metaExistente.id:uid(),nome:'Morar juntos',alvo:custoInicial,atual:metaExistente?.atual||0};
+  upsertItem('metas',meta);
+  const meses=Math.max(1,mesesEntre(mesKey(new Date()),dataAlvo));
+  const porPessoa=(custoInicial/meses)/2;
+  if(S.salario>0){
+    const pct=Math.min(100,Math.max(1,Math.round(porPessoa/S.salario*100)));
+    const distAntiga=S.distribuicao.find(d=>d.tipo==='meta'&&d.destino===meta.id);
+    const dist={id:distAntiga?distAntiga.id:uid(),tipo:'meta',destino:meta.id,pct};
+    S.distribuicao=distAntiga?S.distribuicao.map(d=>d.id===dist.id?dist:d):[...S.distribuicao,dist];
+  }
+  S.mudanca={aluguel,contas,custoInicial,dataAlvo,metaId:meta.id};
+  save();cloudSaveConfig();haptic();flashSucesso();fechar();render();
+}
+function apagarSimuladorMudanca(){
+  if(!confirm('Apagar a simulação? A meta "Morar juntos" continua existindo, só para de receber sugestão automática.'))return;
+  if(S.mudanca?.metaId)S.distribuicao=S.distribuicao.filter(d=>!(d.tipo==='meta'&&d.destino===S.mudanca.metaId));
+  S.mudanca=null;
+  save();cloudSaveConfig();haptic(20);fechar();render();
 }
 let F=null;
 function editarFixo(id){

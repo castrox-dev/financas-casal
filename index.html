@@ -447,16 +447,17 @@ function resumoParaIA(k){
   return{gastoTotal:t.gasto,rendaTotal:t.renda,saldo:t.saldo,gastoPorCategoria:t.porCat,gastoMesPassado:ant.gasto,gastoPorCategoriaMesPassado:ant.porCat,tetosDefinidos:S.orc};
 }
 function chaveInsightIA(k){return k+'|'+JSON.stringify(resumoParaIA(k))}
-/* chama o proxy com o "pensamento" do modelo desligado (thinkingBudget:0):
-   sem isso o Gemini demora dezenas de segundos até pra responder "ok", o
-   que não dá pro chat nem pros conselhos. Aborta sozinho se travar. */
+/* usa o "lite" do Gemini: o "gemini-3.8-flash" normal tem cota grátis de só
+   20 pedidos/dia (estoura rapidinho com o chat + conselhos) e ainda "pensa"
+   por dezenas de segundos antes de responder "ok". O lite responde na hora
+   e tem cota bem maior. Aborta sozinho se travar. */
 async function chamarIA(body,timeoutMs=20000){
   const ctrl=new AbortController();
   const t=setTimeout(()=>ctrl.abort(),timeoutMs);
   try{
     const resp=await fetch(IA_PROXY_URL,{
       method:'POST',headers:{'Content-Type':'application/json'},signal:ctrl.signal,
-      body:JSON.stringify({generationConfig:{thinkingConfig:{thinkingBudget:0}},...body})
+      body:JSON.stringify({model:'gemini-3.5-flash-lite',...body})
     });
     const data=await resp.json();
     return data?.candidates?.[0]?.content?.parts?.[0]?.text||null;

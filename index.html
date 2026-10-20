@@ -67,9 +67,8 @@ nav button.on .ic{transform:scale(1.08)}
 .fab:active{transform:scale(.88) rotate(90deg)}
 .fab svg{width:26px;height:26px;stroke:currentColor;stroke-width:2.3;stroke-linecap:round}
 
-input,select,textarea,button.btn{width:100%;background:var(--card2);color:var(--txt);border:0;border-radius:14px;padding:14px;font-size:17px;margin-bottom:10px;transition:transform .22s var(--bounce)}
-textarea{font-size:13px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;resize:vertical;min-height:100px;line-height:1.4}
-input:focus,select:focus,textarea:focus{outline:2px solid var(--acc)}
+input,select,button.btn{width:100%;background:var(--card2);color:var(--txt);border:0;border-radius:14px;padding:14px;font-size:17px;margin-bottom:10px;transition:transform .22s var(--bounce)}
+input:focus,select:focus{outline:2px solid var(--acc)}
 button.btn{background:linear-gradient(165deg, color-mix(in srgb, var(--acc) 85%, white 15%), var(--acc));color:var(--accink);font-weight:700;box-shadow:inset 0 1px 0 rgba(255,255,255,.4)}
 button.btn:active{transform:scale(.97)}
 button.btn.sec{background:var(--card2);color:var(--txt);box-shadow:none}
@@ -137,6 +136,10 @@ button.btn.del{background:var(--bad);color:#fff;box-shadow:none}
 const KEY='financas.v1';
 const CATS=[['🍔','Comida'],['🛒','Mercado'],['🚗','Transporte'],['🏠','Moradia'],['🎮','Lazer'],['💊','Saúde'],['📚','Estudos'],['👕','Compras'],['💳','Assinaturas'],['📦','Outros']];
 const CARD_COLORS=[['#6c6cf2','#3b2fb0'],['#38bdf8','#0369a1'],['#34d399','#047857'],['#fb7185','#9f1239'],['#fbbf24','#b45309'],['#94a3b8','#1e293b'],['#f472b6','#9d174d'],['#2dd4bf','#0f766e']];
+/* Config pública do Firebase (não é segredo: toda config web do Firebase é
+   pensada pra ir embutida no app; quem protege os dados são as regras do
+   Firestore). Embutida aqui pra quem conectar não precisar colar nada. */
+const FIREBASE_CFG={apiKey:"AIzaSyCIKXGNO5PSn5P2BYAiqLDZiC-uIAYfYgI",authDomain:"financas-casal-5faea.firebaseapp.com",projectId:"financas-casal-5faea",storageBucket:"financas-casal-5faea.firebasestorage.app",messagingSenderId:"30626929484",appId:"1:30626929484:web:ca608fa5e1240a3e340de9"};
 const def={tx:[],orc:{},fixos:[],salario:0,metas:[],cartoes:[],distribuicao:[]};
 let S=load();
 function load(){try{return Object.assign({},def,JSON.parse(localStorage.getItem(KEY)||'{}'))}catch(e){return {...def}}}
@@ -172,13 +175,6 @@ let FS=null,db=null,auth=null,cloudCfg=null,cloudListeners=[];
 function loadCloudCfg(){try{return JSON.parse(localStorage.getItem('financas.cloud')||'null')}catch(e){return null}}
 function saveCloudCfg(c){try{localStorage.setItem('financas.cloud',JSON.stringify(c))}catch(e){}}
 function cloudOn(){return !!db}
-function parseFirebaseCfg(raw){
-  let t=(raw||'').trim();
-  const m=t.match(/\{[\s\S]*\}/);
-  if(m)t=m[0];
-  t=t.replace(/([{,]\s*)([A-Za-z0-9_]+)\s*:/g,'$1"$2":').replace(/,(\s*[}\]])/g,'$1');
-  return JSON.parse(t);
-}
 async function conectarCloud(cfg){
   const[{initializeApp},{getAuth,signInAnonymously},{getFirestore,doc,collection,onSnapshot,setDoc,deleteDoc,enableIndexedDbPersistence}]=await Promise.all([
     import('https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js'),
@@ -239,22 +235,27 @@ function removeItem(colKey,id){
   save();
   cloudRemove(colKey,id);
 }
-function abrirConectarCasal(){
+function linkConvite(codigo){
+  return location.origin+location.pathname+'?c='+encodeURIComponent(codigo);
+}
+function compartilharConvite(){
+  const link=linkConvite(cloudCfg.codigo);
+  if(navigator.share){navigator.share({title:'Finanças a dois',text:'Entra no nosso app de finanças:',url:link}).catch(()=>{})}
+  else if(navigator.clipboard){navigator.clipboard.writeText(link).then(()=>alert('Link copiado! Só colar e mandar pro seu par.'))}
+  else abrir(`<h1>Convite</h1><div class="mut" style="margin-bottom:10px">Copie e mande esse link:</div><input readonly value="${esc(link)}" onclick="this.select()">`);
+}
+function abrirConectarCasal(codigoPrefill){
   abrir(`<h1>Conectar com meu par</h1>
-  <div class="mut" style="margin-bottom:10px">Os dois usam o mesmo código e a mesma configuração do Firebase. Quem configurar primeiro compartilha essas informações com o parceiro(a).</div>
-  <input id="kn" placeholder="Seu nome (aparece nos lançamentos)">
-  <input id="kc" placeholder="Código do casal (combinem um só)">
-  <textarea id="kf" placeholder='Cole aqui o "firebaseConfig" do console do Firebase'></textarea>
+  <div class="mut" style="margin-bottom:10px">Toque em Conectar pra ver os mesmos lançamentos do seu par, em tempo real.</div>
+  <input id="kn" placeholder="Seu nome (aparece nos lançamentos)" autofocus>
+  <input id="kc" placeholder="Código do casal" value="${esc(codigoPrefill||'')}">
   <button class="btn" onclick="salvarConexaoCasal()">Conectar</button>`);
 }
 async function salvarConexaoCasal(){
   const nome=document.getElementById('kn').value.trim();
   const codigo=document.getElementById('kc').value.trim();
-  const raw=document.getElementById('kf').value;
-  let cfg;
-  try{cfg=parseFirebaseCfg(raw)}catch(e){document.getElementById('kf').style.outline='2px solid var(--bad)';haptic(20);return}
-  if(!nome||!codigo||!cfg.apiKey||!cfg.projectId){haptic(20);return}
-  const completo={...cfg,codigo,nome};
+  if(!nome||!codigo){haptic(20);return}
+  const completo={...FIREBASE_CFG,codigo,nome};
   saveCloudCfg(completo);cloudCfg=completo;
   try{
     await conectarCloud(completo);
@@ -262,7 +263,7 @@ async function salvarConexaoCasal(){
   }catch(e){
     console.error('[cloud]',e);
     localStorage.removeItem('financas.cloud');cloudCfg=null;db=null;auth=null;FS=null;
-    alert('Não consegui conectar. Confira o código, seu nome e a configuração do Firebase (colada certinha) e tente de novo.');
+    alert('Não consegui conectar agora. Confira sua internet e tente de novo.');
   }
 }
 function desconectarCloud(force){
@@ -472,7 +473,8 @@ function vMais(){
   if(cloudCfg){
     h+=`<div class="row"><span>Conectado como</span><b>${esc(cloudCfg.nome||'Você')}</b></div>
     <div class="mut" style="margin-top:4px">Código: ${esc(cloudCfg.codigo)}</div>
-    <button class="btn sec" style="margin-top:10px" onclick="desconectarCloud()">Desconectar deste aparelho</button>`;
+    <button class="btn" style="margin-top:10px" onclick="compartilharConvite()">Compartilhar convite com meu par</button>
+    <button class="btn sec" style="margin-top:4px" onclick="desconectarCloud()">Desconectar deste aparelho</button>`;
   }else{
     h+=`<div class="mut" style="margin-bottom:10px">Conecte este aparelho ao do seu par pra ver os mesmos lançamentos em tempo real nos dois celulares.</div>
     <button class="btn" onclick="abrirConectarCasal()">Conectar com meu par</button>`;
@@ -735,7 +737,13 @@ document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{haptic(6);tab=
 if('serviceWorker' in navigator)addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
 cloudCfg=loadCloudCfg();
 if(cloudCfg)conectarCloud(cloudCfg).catch(e=>console.error('[cloud]',e));
+const convite=new URLSearchParams(location.search).get('c');
+if(convite&&!cloudCfg)tab='mais';
 render();
+if(convite&&!cloudCfg){
+  history.replaceState(null,'',location.pathname);
+  setTimeout(()=>abrirConectarCasal(convite),300);
+}
 </script>
 </body>
 </html>

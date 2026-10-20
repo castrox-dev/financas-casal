@@ -140,7 +140,7 @@ const CARD_COLORS=[['#6c6cf2','#3b2fb0'],['#38bdf8','#0369a1'],['#34d399','#0478
    pensada pra ir embutida no app; quem protege os dados são as regras do
    Firestore). Embutida aqui pra quem conectar não precisar colar nada. */
 const FIREBASE_CFG={apiKey:"AIzaSyCIKXGNO5PSn5P2BYAiqLDZiC-uIAYfYgI",authDomain:"financas-casal-5faea.firebaseapp.com",projectId:"financas-casal-5faea",storageBucket:"financas-casal-5faea.firebasestorage.app",messagingSenderId:"30626929484",appId:"1:30626929484:web:ca608fa5e1240a3e340de9"};
-const def={tx:[],orc:{},fixos:[],salario:0,metas:[],cartoes:[],distribuicao:[],mudanca:null};
+const def={tx:[],orc:{},fixos:[],salario:0,rendas:[],metas:[],cartoes:[],distribuicao:[],mudanca:null};
 let S=load();
 function load(){try{return Object.assign({},def,JSON.parse(localStorage.getItem(KEY)||'{}'))}catch(e){return {...def}}}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
@@ -192,7 +192,7 @@ async function conectarCloud(cfg){
   if(pendingCloudSync){pendingCloudSync=false;sincronizarLocalParaCloud()}
 }
 function sincronizarLocalParaCloud(){
-  ['tx','fixos','metas','cartoes'].forEach(col=>{S[col].forEach(item=>cloudUpsert(col,item))});
+  ['tx','fixos','metas','cartoes','rendas'].forEach(col=>{S[col].forEach(item=>cloudUpsert(col,item))});
   cloudSaveConfig();
 }
 function pararListeners(){cloudListeners.forEach(u=>{try{u()}catch(e){}});cloudListeners=[]}
@@ -201,9 +201,13 @@ function ligarListeners(){
   const codigo=cloudCfg.codigo;
   cloudListeners.push(FS.onSnapshot(FS.doc(db,'casais',codigo),snap=>{
     const d=snap.data();
-    if(d){S.salario=d.salario||0;S.orc=d.orc||{};S.distribuicao=d.distribuicao||[];S.mudanca=d.mudanca||null;recomputeOrcFromDistribuicao();save();render();}
+    if(d){
+      S.salario=d.salario||0;S.orc=d.orc||{};S.distribuicao=d.distribuicao||[];S.mudanca=d.mudanca||null;
+      migrarSalarioParaRendas();
+      recomputeOrcFromDistribuicao();save();render();
+    }
   }));
-  ['tx','fixos','metas','cartoes'].forEach(col=>{
+  ['tx','fixos','metas','cartoes','rendas'].forEach(col=>{
     cloudListeners.push(FS.onSnapshot(FS.collection(db,'casais',codigo,col),snap=>{
       const arr=[];snap.forEach(d=>arr.push({id:d.id,...d.data()}));
       S[col]=arr;save();render();
@@ -222,7 +226,7 @@ function cloudRemove(col,id){
 }
 function cloudSaveConfig(){
   if(!cloudOn()){if(cloudCfg)pendingCloudSync=true;return}
-  FS.setDoc(FS.doc(db,'casais',cloudCfg.codigo),{salario:S.salario,orc:S.orc,distribuicao:S.distribuicao,mudanca:S.mudanca},{merge:true}).catch(e=>console.error('[cloud]',e));
+  FS.setDoc(FS.doc(db,'casais',cloudCfg.codigo),{salario:0,orc:S.orc,distribuicao:S.distribuicao,mudanca:S.mudanca},{merge:true}).catch(e=>console.error('[cloud]',e));
 }
 function upsertItem(colKey,item){
   const arr=S[colKey];
@@ -275,30 +279,46 @@ function desconectarCloud(force){
 }
 
 /* ---------- regras ---------- */
-/* fixos viram lançamentos virtuais no mês consultado */
+/* fixos e rendas viram lançamentos virtuais no mês consultado */
 function fixosDoMes(k){
   return S.fixos.filter(f=>!f.ate||f.ate>=k).filter(f=>!f.desde||f.desde<=k).map(f=>({id:'fx'+f.id,fixo:true,tipo:'gasto',valor:f.valor,cat:f.cat,desc:f.desc,cartao:f.cartao||null,autor:f.autor||null,data:k+'-'+String(Math.min(f.dia||1,diasNoMes(k))).padStart(2,'0')}));
 }
+function rendasDoMes(k){
+  return S.rendas.filter(r=>!r.ate||r.ate>=k).filter(r=>!r.desde||r.desde<=k).map(r=>({id:'rd'+r.id,fixo:true,tipo:'ganho',valor:r.valor,cat:'Renda',desc:r.desc,autor:r.autor||null,data:k+'-'+String(Math.min(r.dia||1,diasNoMes(k))).padStart(2,'0')}));
+}
 function txMes(k){
   const reais=S.tx.filter(t=>t.data.startsWith(k));
-  return reais.concat(fixosDoMes(k)).sort((a,b)=>b.data.localeCompare(a.data));
+  return reais.concat(fixosDoMes(k)).concat(rendasDoMes(k)).sort((a,b)=>b.data.localeCompare(a.data));
 }
 function totais(k){
   const l=txMes(k);
   const gasto=l.filter(t=>t.tipo==='gasto').reduce((s,t)=>s+t.valor,0);
   const ganho=l.filter(t=>t.tipo==='ganho').reduce((s,t)=>s+t.valor,0);
-  const renda=S.salario>0?Math.max(S.salario,ganho):ganho;
-  const porCat={};
+  const porCat={},porPessoa={};
   l.filter(t=>t.tipo==='gasto').forEach(t=>porCat[t.cat]=(porCat[t.cat]||0)+t.valor);
-  return{gasto,ganho,renda,porCat,saldo:renda-gasto};
+  l.filter(t=>t.tipo==='ganho').forEach(t=>{const nome=t.autor||'Sem nome';porPessoa[nome]=(porPessoa[nome]||0)+t.valor});
+  return{gasto,ganho,renda:ganho,porCat,porPessoa,saldo:ganho-gasto};
 }
 function tetoTotal(){return Object.values(S.orc).reduce((a,b)=>a+(+b||0),0)}
+function rendaRecorrenteMensal(){return S.rendas.reduce((s,r)=>s+(+r.valor||0),0)}
+/* migra o antigo salário único (um campo pro casal todo) pra uma renda
+   recorrente nomeada; roda uma vez quando ainda existir o campo antigo. */
+function migrarSalarioParaRendas(){
+  if(S.salario>0&&(!S.rendas||!S.rendas.length)){
+    const valorAntigo=S.salario;
+    S.salario=0;
+    upsertItem('rendas',{id:uid(),desc:'Renda principal',valor:valorAntigo,autor:cloudCfg?.nome||null,dia:1});
+    cloudSaveConfig();
+  }
+}
 
-/* ---------- distribuição do salário por % ----------
+/* ---------- distribuição da renda por % ----------
    Cada divisão aponta pra uma categoria (define o teto do orçamento), uma
    meta (vira "sugerido este mês" no card da meta) ou um nome livre (só
-   planejamento, sem efeito automático). */
-function valorDistribuicao(pct){return Math.round((S.salario||0)*(+pct||0)/100)}
+   planejamento, sem efeito automático). Base: soma das rendas recorrentes
+   (salário, VR...) — bicos avulsos lançados como Entrada não entram na
+   base, pra não bagunçar o planejamento com algo variável. */
+function valorDistribuicao(pct){return Math.round(rendaRecorrenteMensal()*(+pct||0)/100)}
 function totalPctDistribuicao(){return S.distribuicao.reduce((s,d)=>s+(+d.pct||0),0)}
 function recomputeOrcFromDistribuicao(){
   S.distribuicao.forEach(d=>{
@@ -442,9 +462,12 @@ function vHoje(){
   </div>
   ${semBase?'':`<div style="position:relative;flex-shrink:0">${ring(pctUsado,72,cor(pctUsado))}<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700">${Math.round(pctUsado)}%</div></div>`}
   </div></div>`;
+  const pessoasRenda=Object.entries(t.porPessoa).sort((a,b)=>b[1]-a[1]);
   h+=`<div class="card"><div class="row"><div><div class="mut">Gasto no mês</div><div style="font-size:24px;font-weight:700" class="tabular">${R(t.gasto)}</div></div>
   <div style="text-align:right"><div class="mut">Entradas</div><div style="font-size:24px;font-weight:700" class="pos tabular">${R(t.renda)}</div></div></div>
-  <div class="mut" style="margin-top:8px">Saldo do mês: <b class="${t.saldo<0?'neg':'pos'}">${R(t.saldo)}</b></div></div>`;
+  <div class="mut" style="margin-top:8px">Saldo do mês: <b class="${t.saldo<0?'neg':'pos'}">${R(t.saldo)}</b></div>
+  ${pessoasRenda.length>1?`<div class="mut" style="margin-top:4px">${pessoasRenda.map(([n,v])=>`${esc(n)}: ${R(v)}`).join(' · ')}</div>`:''}
+  </div>`;
   const cats=Object.entries(t.porCat).sort((a,b)=>b[1]-a[1]);
   h+='<h2>Pra onde foi</h2><div class="card">';
   if(!cats.length)h+='<div class="empty">Nada lançado ainda.<br>Toque no + pra começar.</div>';
@@ -507,7 +530,8 @@ function vOrc(){
   });
   h+='</div>';
   const tt=tetoTotal();
-  if(tt)h+=`<div class="card mut">Soma dos tetos: <b>${R(tt)}</b>${S.salario>0?` · ${Math.round(tt/S.salario*100)}% do salário`:''}</div>`;
+  const rendaRec=rendaRecorrenteMensal();
+  if(tt)h+=`<div class="card mut">Soma dos tetos: <b>${R(tt)}</b>${rendaRec>0?` · ${Math.round(tt/rendaRec*100)}% da renda`:''}</div>`;
   return h;
 }
 function vMais(){
@@ -539,10 +563,21 @@ function vMais(){
     <button class="btn" onclick="abrirSimuladorMudanca()">Simular plano de morar juntos</button>`;
   }
   h+='</div>';
-  h+=`<h2>Renda</h2><div class="card" onclick="editarSalario()"><div class="row"><span>Salário mensal</span><b>${S.salario?R(S.salario):'definir'}</b></div></div>`;
-  h+='<h2>Distribuição do salário</h2>';
-  if(S.salario<=0){
-    h+='<div class="card mut">Defina seu salário acima pra planejar a divisão por porcentagem (ex.: 30% reserva de emergência).</div>';
+  h+='<h2>Rendas</h2><div class="card">';
+  if(!S.rendas.length)h+='<div class="empty">Nenhuma renda ainda.<br>Ex.: Salário, VR, bolsa...</div>';
+  S.rendas.forEach(r=>{
+    h+=`<div class="item" onclick="editarRenda('${r.id}')"><div class="row"><span>💰 ${esc(r.desc)}<div class="mut">${esc(r.autor||'Sem nome')}</div></span><b>${R(r.valor)}</b></div></div>`;
+  });
+  const pessoas=Object.entries(S.rendas.reduce((acc,r)=>{const n=r.autor||'Sem nome';acc[n]=(acc[n]||0)+(+r.valor||0);return acc},{}));
+  if(pessoas.length){
+    h+=`<div class="mut" style="margin-top:8px">Renda oficial do casal: <b>${R(rendaRecorrenteMensal())}</b></div>`;
+    if(pessoas.length>1)pessoas.forEach(([n,v])=>{h+=`<div class="mut">${esc(n)}: ${R(v)}</div>`});
+  }
+  h+='</div>';
+  h+='<button class="btn sec" style="margin:8px 0 0" onclick="editarRenda()">+ Nova renda</button>';
+  h+='<h2>Distribuição da renda</h2>';
+  if(rendaRecorrenteMensal()<=0){
+    h+='<div class="card mut">Cadastre uma renda acima pra planejar a divisão por porcentagem (ex.: 30% reserva de emergência).</div>';
   }else{
     h+='<div class="card">';
     if(!S.distribuicao.length)h+='<div class="empty">Nenhuma divisão ainda.<br>Ex.: 30% Reserva de emergência.</div>';
@@ -550,7 +585,7 @@ function vMais(){
       h+=`<div class="item" onclick="editarDistribuicao('${d.id}')"><div class="row"><span>${distribuicaoLabel(d)}</span><b>${d.pct}% · ${R(valorDistribuicao(d.pct))}</b></div></div>`;
     });
     const totalPct=totalPctDistribuicao();
-    h+=`<div class="mut" style="margin-top:8px">${totalPct}% do salário alocado${totalPct>100?' · passou do total!':''}</div>`;
+    h+=`<div class="mut" style="margin-top:8px">${totalPct}% da renda alocado${totalPct>100?' · passou do total!':''}</div>`;
     h+='</div>';
     h+='<button class="btn sec" style="margin:8px 0 0" onclick="editarDistribuicao()">+ Nova divisão</button>';
   }
@@ -618,13 +653,31 @@ function apagarLanc(){if(confirm('Apagar este lançamento?')){removeItem('tx',L.
 
 function editarOrc(c){
   const viaDistrib=S.distribuicao.some(d=>d.tipo==='cat'&&d.destino===c);
-  abrir(`<h1>${catIcon(c)} ${c}</h1><div class="mut" style="margin-bottom:10px">${viaDistrib?'Este teto vem da divisão do salário (Mais > Distribuição). Mudar aqui vale só até o próximo recálculo.':'Teto mensal (deixe vazio pra remover)'}</div><input id="ov" inputmode="decimal" placeholder="R$ 0,00" value="${S.orc[c]||''}"><button class="btn" onclick="salvarOrc('${c}')">Salvar</button>`);
+  abrir(`<h1>${catIcon(c)} ${c}</h1><div class="mut" style="margin-bottom:10px">${viaDistrib?'Este teto vem da divisão da renda (Mais > Distribuição). Mudar aqui vale só até o próximo recálculo.':'Teto mensal (deixe vazio pra remover)'}</div><input id="ov" inputmode="decimal" placeholder="R$ 0,00" value="${S.orc[c]||''}"><button class="btn" onclick="salvarOrc('${c}')">Salvar</button>`);
   setTimeout(()=>document.getElementById('ov').focus(),250);
 }
 function salvarOrc(c){const v=numLivre(document.getElementById('ov').value);if(v>0)S.orc[c]=v;else delete S.orc[c];save();cloudSaveConfig();haptic();fechar();render()}
-function editarSalario(){
-  abrir(`<h1>Salário mensal</h1><input id="sv" inputmode="decimal" placeholder="R$ 0,00" value="${S.salario||''}"><button class="btn" onclick="const v=numLivre(document.getElementById('sv').value);S.salario=v>0?v:0;recomputeOrcFromDistribuicao();save();cloudSaveConfig();haptic();fechar();render()">Salvar</button>`);
+let RE=null;
+function editarRenda(id){
+  RE=id?S.rendas.find(r=>r.id===id):null;const r=RE||{};
+  abrir(`<h1>${RE?'Editar':'Nova'} renda</h1>
+  <input id="red" placeholder="Nome (ex.: Salário CLT, VR, Bolsa)" value="${esc(r.desc||'')}" autofocus>
+  <input id="rev" inputmode="decimal" placeholder="Valor por mês (R$)" value="${r.valor||''}">
+  <input id="rea" placeholder="De quem é essa renda (nome)" value="${esc(r.autor||cloudCfg?.nome||'')}">
+  <button class="btn" onclick="salvarRenda()">Salvar</button>
+  ${RE?'<button class="btn del" onclick="apagarRenda()">Apagar</button>':''}`);
 }
+function salvarRenda(){
+  const desc=document.getElementById('red').value.trim();
+  const valor=numLivre(document.getElementById('rev').value);
+  const autor=document.getElementById('rea').value.trim();
+  if(!desc||!(valor>0)){haptic(20);return}
+  const o={id:RE?RE.id:uid(),desc,valor,autor:autor||null,dia:RE?.dia||1};
+  upsertItem('rendas',o);
+  recomputeOrcFromDistribuicao();save();cloudSaveConfig();
+  haptic();flashSucesso();fechar();render();
+}
+function apagarRenda(){if(confirm('Apagar esta renda?')){removeItem('rendas',RE.id);recomputeOrcFromDistribuicao();save();cloudSaveConfig();haptic(20);fechar();render()}}
 let DI=null,DIType=null;
 function distribDestinoHtml(tipo,destino){
   if(tipo==='cat')return `<select id="ddsel">${CATS.map(([i,c])=>`<option value="${c}" ${c===destino?'selected':''}>${i} ${c}</option>`).join('')}</select>`;
@@ -650,7 +703,7 @@ function editarDistribuicao(id){
     <button id="dtl" class="${d.tipo==='livre'?'on':''}" onclick="setTipoDistrib('livre')">Livre</button>
   </div>
   <div id="ddest">${distribDestinoHtml(d.tipo,d.destino)}</div>
-  <input id="dpct" type="number" min="1" max="100" placeholder="% do salário" value="${d.pct||''}">
+  <input id="dpct" type="number" min="1" max="100" placeholder="% da renda" value="${d.pct||''}">
   <button class="btn" onclick="salvarDistribuicao()">Salvar</button>
   ${DI?'<button class="btn del" onclick="apagarDistribuicao()">Apagar</button>':''}`);
 }
@@ -700,8 +753,9 @@ function salvarSimuladorMudanca(){
   upsertItem('metas',meta);
   const meses=Math.max(1,mesesEntre(mesKey(new Date()),dataAlvo));
   const porPessoa=(custoInicial/meses)/2;
-  if(S.salario>0){
-    const pct=Math.min(100,Math.max(1,Math.round(porPessoa/S.salario*100)));
+  const rendaRec=rendaRecorrenteMensal();
+  if(rendaRec>0){
+    const pct=Math.min(100,Math.max(1,Math.round(porPessoa/rendaRec*100)));
     const distAntiga=S.distribuicao.find(d=>d.tipo==='meta'&&d.destino===meta.id);
     const dist={id:distAntiga?distAntiga.id:uid(),tipo:'meta',destino:meta.id,pct};
     S.distribuicao=distAntiga?S.distribuicao.map(d=>d.id===dist.id?dist:d):[...S.distribuicao,dist];
@@ -839,6 +893,7 @@ document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{haptic(6);tab=
 if('serviceWorker' in navigator)addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
 cloudCfg=loadCloudCfg();
 if(cloudCfg)conectarCloud(cloudCfg).catch(e=>console.error('[cloud]',e));
+migrarSalarioParaRendas();
 const convite=new URLSearchParams(location.search).get('c');
 if(convite&&!cloudCfg)tab='mais';
 render();

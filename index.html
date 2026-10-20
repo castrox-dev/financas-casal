@@ -178,7 +178,7 @@ button.btn.del{background:var(--bad);color:#fff;box-shadow:none}
   <span class="navind" id="navind"></span>
   <button data-t="hoje" class="on"><svg class="ic"><use href="#i-home"/></svg>Hoje</button>
   <button data-t="extrato"><svg class="ic"><use href="#i-receipt"/></svg>Extrato</button>
-  <button data-t="cartoes"><svg class="ic"><use href="#i-card"/></svg>Cartões</button>
+  <button data-t="rendas"><svg class="ic"><use href="#i-renda"/></svg>Rendas</button>
   <button data-t="orcamento"><svg class="ic"><use href="#i-target"/></svg>Orçamento</button>
   <button data-t="mais"><svg class="ic"><use href="#i-more"/></svg>Mais</button>
 </nav>
@@ -607,10 +607,10 @@ function ring(pct,size,strokeColor){
 function render(){
   const el=document.getElementById('app');
   document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.t===tab));
-  el.innerHTML=({hoje:vHoje,extrato:vExtrato,cartoes:vCartoes,orcamento:vOrc,mais:vMais})[tab]();
+  el.innerHTML=({hoje:vHoje,extrato:vExtrato,rendas:vRendas,orcamento:vOrc,mais:vMais})[tab]();
   const fab=document.getElementById('fab');
   fab.style.display=tab==='mais'?'none':'flex';
-  fab.onclick=tab==='cartoes'?()=>{haptic();editarCartao()}:()=>{haptic();abrirLanc()};
+  fab.onclick=()=>{haptic();abrirLanc()};
   requestAnimationFrame(()=>{
     [...document.querySelectorAll('.ringfill')].forEach(c=>{c.style.strokeDashoffset=c.dataset.off});
     atualizarIndicadorNav();
@@ -693,25 +693,33 @@ function vExtrato(){
   });
   return h+'</div>';
 }
-function vCartoes(){
-  let h='<h1>Cartões</h1>';
-  if(!S.cartoes.length){
-    h+='<div class="card"><div class="empty">Nenhum cartão ainda.<br>Toque no + pra adicionar.</div></div>';
-    return h;
-  }
-  h+='<div class="ccgrid">';
-  S.cartoes.forEach(c=>{
-    const[c1,c2]=corParts(c);
-    const f=faturaAtual(c);
-    const pct=c.limite?Math.min(f.total/c.limite*100,100):0;
-    h+=`<div class="ccard" style="background:linear-gradient(135deg,${c1},${c2})" onclick="verCartao('${c.id}')">
-    <div class="ccname">${esc(c.nome)}</div>
-    <div class="ccrow"><span class="ccnum">•••• ${esc(c.final||'----')}</span><span class="ccfat tabular">${R(f.total)}</span></div>
-    ${c.limite?`<div class="ccbar"><i style="width:${pct}%"></i></div>`:''}
-    </div>`;
+function vRendas(){
+  let h='<h1>Rendas</h1><div class="card">';
+  if(!S.rendas.length)h+='<div class="empty">Nenhuma renda ainda.<br>Ex.: Salário, VR, bolsa...</div>';
+  S.rendas.forEach(r=>{
+    h+=`<div class="item" onclick="editarRenda('${r.id}')"><div class="row"><span>${ic('renda')} ${esc(r.desc)}<div class="mut">${esc(r.autor||'Sem nome')}${r.ate?' · até '+r.ate.slice(5)+'/'+r.ate.slice(0,4):''}</div></span><b>${R(r.valor)}</b></div></div>`;
   });
+  const pessoas=Object.entries(S.rendas.reduce((acc,r)=>{const n=r.autor||'Sem nome';acc[n]=(acc[n]||0)+(+r.valor||0);return acc},{}));
+  if(pessoas.length){
+    h+=`<div class="mut" style="margin-top:8px">Renda oficial do casal: <b>${R(rendaRecorrenteMensal())}</b></div>`;
+    if(pessoas.length>1)pessoas.forEach(([n,v])=>{h+=`<div class="mut">${esc(n)}: ${R(v)}</div>`});
+  }
   h+='</div>';
-  h+='<button class="btn sec" onclick="editarCartao()">+ Novo cartão</button>';
+  h+='<button class="btn sec" style="margin:8px 0 0" onclick="editarRenda()">+ Nova renda</button>';
+  h+='<h2>Distribuição da renda</h2>';
+  if(rendaRecorrenteMensal()<=0){
+    h+='<div class="card mut">Cadastre uma renda acima pra planejar a divisão por porcentagem (ex.: 30% reserva de emergência).</div>';
+  }else{
+    h+='<div class="card">';
+    if(!S.distribuicao.length)h+='<div class="empty">Nenhuma divisão ainda.<br>Ex.: 30% Reserva de emergência.</div>';
+    S.distribuicao.forEach(d=>{
+      h+=`<div class="item" onclick="editarDistribuicao('${d.id}')"><div class="row"><span>${distribuicaoLabel(d)}</span><b>${d.pct}% · ${R(valorDistribuicao(d.pct))}</b></div></div>`;
+    });
+    const totalPct=totalPctDistribuicao();
+    h+=`<div class="mut" style="margin-top:8px">${totalPct}% da renda alocado${totalPct>100?' · passou do total!':''}</div>`;
+    h+='</div>';
+    h+='<button class="btn sec" style="margin:8px 0 0" onclick="editarDistribuicao()">+ Nova divisão</button>';
+  }
   return h;
 }
 function vOrc(){
@@ -756,32 +764,24 @@ function vMais(){
     <button class="btn" onclick="abrirSimuladorMudanca()">Simular plano de morar juntos</button>`;
   }
   h+='</div>';
-  h+='<h2>Rendas</h2><div class="card">';
-  if(!S.rendas.length)h+='<div class="empty">Nenhuma renda ainda.<br>Ex.: Salário, VR, bolsa...</div>';
-  S.rendas.forEach(r=>{
-    h+=`<div class="item" onclick="editarRenda('${r.id}')"><div class="row"><span>${ic('renda')} ${esc(r.desc)}<div class="mut">${esc(r.autor||'Sem nome')}</div></span><b>${R(r.valor)}</b></div></div>`;
-  });
-  const pessoas=Object.entries(S.rendas.reduce((acc,r)=>{const n=r.autor||'Sem nome';acc[n]=(acc[n]||0)+(+r.valor||0);return acc},{}));
-  if(pessoas.length){
-    h+=`<div class="mut" style="margin-top:8px">Renda oficial do casal: <b>${R(rendaRecorrenteMensal())}</b></div>`;
-    if(pessoas.length>1)pessoas.forEach(([n,v])=>{h+=`<div class="mut">${esc(n)}: ${R(v)}</div>`});
-  }
-  h+='</div>';
-  h+='<button class="btn sec" style="margin:8px 0 0" onclick="editarRenda()">+ Nova renda</button>';
-  h+='<h2>Distribuição da renda</h2>';
-  if(rendaRecorrenteMensal()<=0){
-    h+='<div class="card mut">Cadastre uma renda acima pra planejar a divisão por porcentagem (ex.: 30% reserva de emergência).</div>';
+  h+='<h2>Cartões</h2>';
+  if(!S.cartoes.length){
+    h+='<div class="card"><div class="empty">Nenhum cartão ainda.</div></div>';
   }else{
-    h+='<div class="card">';
-    if(!S.distribuicao.length)h+='<div class="empty">Nenhuma divisão ainda.<br>Ex.: 30% Reserva de emergência.</div>';
-    S.distribuicao.forEach(d=>{
-      h+=`<div class="item" onclick="editarDistribuicao('${d.id}')"><div class="row"><span>${distribuicaoLabel(d)}</span><b>${d.pct}% · ${R(valorDistribuicao(d.pct))}</b></div></div>`;
+    h+='<div class="ccgrid">';
+    S.cartoes.forEach(c=>{
+      const[c1,c2]=corParts(c);
+      const f=faturaAtual(c);
+      const pct=c.limite?Math.min(f.total/c.limite*100,100):0;
+      h+=`<div class="ccard" style="background:linear-gradient(135deg,${c1},${c2})" onclick="verCartao('${c.id}')">
+      <div class="ccname">${esc(c.nome)}</div>
+      <div class="ccrow"><span class="ccnum">•••• ${esc(c.final||'----')}</span><span class="ccfat tabular">${R(f.total)}</span></div>
+      ${c.limite?`<div class="ccbar"><i style="width:${pct}%"></i></div>`:''}
+      </div>`;
     });
-    const totalPct=totalPctDistribuicao();
-    h+=`<div class="mut" style="margin-top:8px">${totalPct}% da renda alocado${totalPct>100?' · passou do total!':''}</div>`;
     h+='</div>';
-    h+='<button class="btn sec" style="margin:8px 0 0" onclick="editarDistribuicao()">+ Nova divisão</button>';
   }
+  h+='<button class="btn sec" style="margin:8px 0 0" onclick="editarCartao()">+ Novo cartão</button>';
   h+='<h2>Gastos fixos e assinaturas</h2><div class="card">';
   if(!S.fixos.length)h+='<div class="empty">Nenhum fixo ainda.</div>';
   S.fixos.forEach(f=>{const cc=f.cartao?S.cartoes.find(c=>c.id===f.cartao):null;h+=`<div class="item" onclick="editarFixo('${f.id}')"><div class="row"><span>${catIcon(f.cat)} ${esc(f.desc)}<div class="mut">todo dia ${f.dia}${f.ate?' até '+f.ate.slice(5)+'/'+f.ate.slice(0,4):''}${cc?' · '+esc(cc.nome):''}</div></span><b>${R(f.valor)}</b></div></div>`});
@@ -852,11 +852,14 @@ function editarOrc(c){
 function salvarOrc(c){const v=numLivre(document.getElementById('ov').value);if(v>0)S.orc[c]=v;else delete S.orc[c];save();cloudSaveConfig();haptic();fechar();render()}
 let RE=null;
 function editarRenda(id){
-  RE=id?S.rendas.find(r=>r.id===id):null;const r=RE||{};
+  RE=id?S.rendas.find(r=>r.id===id):null;const r=RE||{dia:1};
   abrir(`<h1>${RE?'Editar':'Nova'} renda</h1>
   <input id="red" placeholder="Nome (ex.: Salário CLT, VR, Bolsa)" value="${esc(r.desc||'')}" autofocus>
   <input id="rev" inputmode="decimal" placeholder="Valor por mês (R$)" value="${r.valor||''}">
   <input id="rea" placeholder="De quem é essa renda (nome)" value="${esc(r.autor||cloudCfg?.nome||'')}">
+  <input id="redia" type="number" min="1" max="31" placeholder="Dia do mês que recebe" value="${r.dia||1}">
+  <div class="mut" style="margin-bottom:6px">Último mês (se for temporário, ex.: bico com contrato). Deixe vazio se for permanente.</div>
+  <input id="reate" type="month" value="${r.ate||''}">
   <button class="btn" onclick="salvarRenda()">Salvar</button>
   ${RE?'<button class="btn del" onclick="apagarRenda()">Apagar</button>':''}`);
 }
@@ -865,7 +868,9 @@ function salvarRenda(){
   const valor=numLivre(document.getElementById('rev').value);
   const autor=document.getElementById('rea').value.trim();
   if(!desc||!(valor>0)){haptic(20);return}
-  const o={id:RE?RE.id:uid(),desc,valor,autor:autor||null,dia:RE?.dia||1};
+  const dia=Math.min(Math.max(+document.getElementById('redia').value||1,1),31);
+  const ate=document.getElementById('reate').value||'';
+  const o={id:RE?RE.id:uid(),desc,valor,autor:autor||null,dia,ate,desde:RE?RE.desde:mesKey(new Date())};
   upsertItem('rendas',o);
   recomputeOrcFromDistribuicao();save();cloudSaveConfig();
   haptic();flashSucesso();fechar();render();
@@ -1018,6 +1023,7 @@ function editarCartao(id){
   <input id="cf" placeholder="Final (4 dígitos, opcional)" inputmode="numeric" maxlength="4" value="${esc(c.final||'')}">
   <input id="cl" inputmode="decimal" placeholder="Limite (R$)" value="${c.limite||''}">
   <input id="cd" type="number" min="1" max="31" placeholder="Dia de fechamento da fatura" value="${c.fechamento||5}">
+  <input id="cv" type="number" min="1" max="31" placeholder="Dia de vencimento da fatura (opcional)" value="${c.vencimento||''}">
   <div class="mut" style="margin:4px 0 8px">Cor do cartão</div>
   ${paletaHtml(CAcor)}
   <button class="btn" onclick="salvarCartao()">Salvar</button>
@@ -1029,7 +1035,9 @@ function salvarCartao(){
   if(!nome||!(limite>0)){haptic(20);return}
   const final=document.getElementById('cf').value.replace(/\D/g,'').slice(0,4);
   const fechamento=Math.min(Math.max(+document.getElementById('cd').value||1,1),31);
-  const o={id:CA?CA.id:uid(),nome,final,limite,fechamento,cor:CAcor};
+  const vv=document.getElementById('cv').value;
+  const vencimento=vv?Math.min(Math.max(+vv||1,1),31):null;
+  const o={id:CA?CA.id:uid(),nome,final,limite,fechamento,vencimento,cor:CAcor};
   upsertItem('cartoes',o);
   haptic();flashSucesso();fechar();render();
 }
@@ -1054,7 +1062,7 @@ function verCartao(id){
   </div>`;
   h+=`<div class="card">
   <div class="row"><span class="mut">Fatura em aberto</span><b class="tabular" style="font-size:20px">${R(f.total)}</b></div>
-  ${c.limite?`<div class="bar"><i style="width:${pct}%;background:${cor(pct)}"></i></div><div class="mut" style="margin-top:6px">${Math.round(pct)}% de ${R(c.limite)} · fecha dia ${c.fechamento}</div>`:`<div class="mut" style="margin-top:6px">Sem limite definido · fecha dia ${c.fechamento}</div>`}
+  ${c.limite?`<div class="bar"><i style="width:${pct}%;background:${cor(pct)}"></i></div><div class="mut" style="margin-top:6px">${Math.round(pct)}% de ${R(c.limite)} · fecha dia ${c.fechamento}${c.vencimento?' · vence dia '+c.vencimento:''}</div>`:`<div class="mut" style="margin-top:6px">Sem limite definido · fecha dia ${c.fechamento}${c.vencimento?' · vence dia '+c.vencimento:''}</div>`}
   </div>`;
   h+='<h2>Lançamentos no ciclo</h2><div class="card">';
   if(!f.txs.length)h+='<div class="empty">Nada lançado neste ciclo ainda.</div>';

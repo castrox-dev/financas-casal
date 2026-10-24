@@ -343,7 +343,7 @@ function desconectarCloud(force){
 function ajusteDe(k,id){return((S.ajustes||{})[k]||{})[id]||null}
 function aplicarAjuste(k,o){const a=ajusteDe(k,o.id);if(a){if(a.valor!=null)o.valor=a.valor;o.ok=!!a.ok;o.ajustado=a.valor!=null}return o}
 function fixosDoMes(k){
-  return S.fixos.filter(f=>!f.ate||f.ate>=k).filter(f=>!f.desde||f.desde<=k).map(f=>({id:'fx'+f.id,fixo:true,tipo:'gasto',valor:f.valor,cat:f.cat,desc:f.desc,cartao:f.cartao||null,autor:f.autor||null,data:k+'-'+String(Math.min(f.dia||1,diasNoMes(k))).padStart(2,'0')})).map(o=>aplicarAjuste(k,o));
+  return S.fixos.filter(f=>!f.ate||f.ate>=k).filter(f=>!f.desde||f.desde<=k).map(f=>({id:'fx'+f.id,fixo:true,tipo:'gasto',valor:f.valor,cat:f.cat,desc:f.desc+(f.parcelaTotal&&f.parcelaInicio?` (${mesesEntre(f.parcelaInicio,k)+1}/${f.parcelaTotal})`:''),cartao:f.cartao||null,autor:f.autor||null,data:k+'-'+String(Math.min(f.dia||1,diasNoMes(k))).padStart(2,'0')})).map(o=>aplicarAjuste(k,o));
 }
 function rendasDoMes(k){
   return S.rendas.filter(r=>!r.ate||r.ate>=k).filter(r=>!r.desde||r.desde<=k).map(r=>({id:'rd'+r.id,fixo:true,tipo:'ganho',valor:r.valor,cat:'Renda',desc:r.desc,autor:r.autor||null,data:k+'-'+String(Math.min(r.dia||1,diasNoMes(k))).padStart(2,'0')})).map(o=>aplicarAjuste(k,o));
@@ -399,7 +399,12 @@ function podeGastarHoje(k){
   const d=diasRestantes(k);
   return{sobra,porDia:d>0?sobra/d:0,dias:d,base};
 }
-function cor(p){return p>=100?'var(--bad)':p>=80?'var(--warn)':'var(--ok)'}
+/* categoria só com fixos (ex.: Moradia = aluguel + internet) bate 100% do
+   teto no dia 1 e isso é o planejado, não um estouro. Vermelho só quando
+   passa do teto. */
+function soFixo(k,c){const l=txMes(k).filter(t=>t.tipo==='gasto'&&t.cat===c);return l.length>0&&l.every(t=>t.fixo)}
+function gastoFixoMes(k){return fixosDoMes(k).reduce((s,t)=>s+t.valor,0)}
+function cor(p,fixo){if(p>100.5)return'var(--bad)';if(fixo)return'var(--ok)';return p>=100?'var(--bad)':p>=80?'var(--warn)':'var(--ok)'}
 
 /* ---------- insights: "consultor financeiro" por regras ----------
    Nada de IA aqui — só comparações com o mês anterior e com os tetos.
@@ -415,7 +420,7 @@ function gerarInsights(k){
   let maiorCresceu=null;
   Object.keys(t.porCat).forEach(c=>{
     const delta=(t.porCat[c]||0)-(ant.porCat[c]||0);
-    if(delta>=30&&(!maiorCresceu||delta>maiorCresceu.delta))maiorCresceu={cat:c,delta,de:ant.porCat[c]||0,para:t.porCat[c]};
+    if(ant.gasto>0&&delta>=30&&(!maiorCresceu||delta>maiorCresceu.delta))maiorCresceu={cat:c,delta,de:ant.porCat[c]||0,para:t.porCat[c]};
   });
   if(maiorCresceu){
     out.push({tone:'warn',icon:'subida',texto:`${catIcon(maiorCresceu.cat)} ${maiorCresceu.cat} subiu ${R(maiorCresceu.delta)} em relação ao mês passado (${R(maiorCresceu.de)} → ${R(maiorCresceu.para)}).`});
@@ -423,12 +428,13 @@ function gerarInsights(k){
   Object.entries(t.porCat).forEach(([c,v])=>{
     const teto=+S.orc[c]||0;if(!teto)return;
     const pc=v/teto*100;
-    if(pc>=100)out.push({tone:'warn',icon:'alerta',texto:`${catIcon(c)} ${c} já passou do teto: ${R(v)} de ${R(teto)}.`});
-    else if(pc>=90)out.push({tone:'info',icon:'info',texto:`${catIcon(c)} ${c} está em ${Math.round(pc)}% do teto (${R(v)} de ${R(teto)}).`});
+    const fx=soFixo(k,c);
+    if(pc>100.5||(!fx&&pc>=100))out.push({tone:'warn',icon:'alerta',texto:`${catIcon(c)} ${c} já passou do teto: ${R(v)} de ${R(teto)}.`});
+    else if(!fx&&pc>=90)out.push({tone:'info',icon:'info',texto:`${catIcon(c)} ${c} está em ${Math.round(pc)}% do teto (${R(v)} de ${R(teto)}).`});
   });
   if(p.base>0){
     const diasMes=diasNoMes(k),diasPassados=Math.max(1,diasMes-p.dias+1);
-    const pctDias=diasPassados/diasMes*100,pctGasto=Math.min(t.gasto/p.base*100,999);
+    const fxm=gastoFixoMes(k),baseVar=p.base-fxm,pctDias=diasPassados/diasMes*100,pctGasto=baseVar>0?Math.min((t.gasto-fxm)/baseVar*100,999):0;
     if(pctGasto-pctDias>=20){
       out.push({tone:'warn',icon:'relogio',texto:`Já foram ${Math.round(pctGasto)}% do orçamento gastos, mas só ${Math.round(pctDias)}% do mês passou — ritmo acelerado.`});
     }
@@ -670,7 +676,7 @@ function vHoje(){
   if(!cats.length)h+='<div class="empty">Nada lançado ainda.<br>Toque no + pra começar.</div>';
   cats.forEach(([c,v])=>{
     const teto=+S.orc[c]||0,pc=teto?v/teto*100:0;
-    h+=`<div class="item"><div class="row"><span>${catIcon(c)} ${esc(c)}</span><b class="tabular">${R(v)}</b></div>${teto?`<div class="bar"><i style="width:${Math.min(pc,100)}%;background:${cor(pc)}"></i></div><div class="mut" style="margin-top:4px">${Math.round(pc)}% de ${R(teto)}</div>`:''}</div>`;
+    h+=`<div class="item"><div class="row"><span>${catIcon(c)} ${esc(c)}</span><b class="tabular">${R(v)}</b></div>${teto?`<div class="bar"><i style="width:${Math.min(pc,100)}%;background:${cor(pc,soFixo(mesRef,c))}"></i></div><div class="mut" style="margin-top:4px">${Math.round(pc)}% de ${R(teto)}</div>`:''}</div>`;
   });
   h+='</div>';
   const insights=gerarInsights(mesRef);
@@ -739,7 +745,7 @@ function vOrc(){
   let h=seletorMes()+'<div class="mut" style="margin-bottom:10px">Defina um teto mensal por categoria. A barra fica amarela em 80% e vermelha em 100%.</div><div class="card">';
   CATS.forEach(([i,c])=>{
     const teto=+S.orc[c]||0,v=t.porCat[c]||0,pc=teto?v/teto*100:0;
-    h+=`<div class="item" onclick="editarOrc('${c}')"><div class="row"><span>${ic(i)} ${c}</span><span>${R(v)} <span class="mut">/ ${teto?R(teto):'definir'}</span></span></div>${teto?`<div class="bar"><i style="width:${Math.min(pc,100)}%;background:${cor(pc)}"></i></div>`:''}</div>`;
+    h+=`<div class="item" onclick="editarOrc('${c}')"><div class="row"><span>${ic(i)} ${c}</span><span>${R(v)} <span class="mut">/ ${teto?R(teto):'definir'}</span></span></div>${teto?`<div class="bar"><i style="width:${Math.min(pc,100)}%;background:${cor(pc,soFixo(mesRef,c))}"></i></div>`:''}</div>`;
   });
   h+='</div>';
   const tt=tetoTotal();
@@ -1020,7 +1026,7 @@ function salvarFixo(){
   const v=numLivre(document.getElementById('fv').value),d=document.getElementById('fd').value.trim();
   if(!(v>0)||!d)return;
   const fp=document.getElementById('ffp');
-  const o={id:F?F.id:uid(),desc:d,valor:v,cat:document.getElementById('fc').value,dia:Math.min(Math.max(+document.getElementById('fdia').value||1,1),31),ate:document.getElementById('fate').value||'',cartao:fp?(fp.value||null):null,autor:(F&&F.autor)||cloudCfg?.nome||null,desde:F?F.desde:mesKey(new Date())};
+  const o={...(F||{}),id:F?F.id:uid(),desc:d,valor:v,cat:document.getElementById('fc').value,dia:Math.min(Math.max(+document.getElementById('fdia').value||1,1),31),ate:document.getElementById('fate').value||'',cartao:fp?(fp.value||null):null,autor:(F&&F.autor)||cloudCfg?.nome||null,desde:F?F.desde:mesKey(new Date())};
   upsertItem('fixos',o);
   haptic();flashSucesso();fechar();render();
 }
@@ -1136,7 +1142,7 @@ function mesclarPlano(p){
   });
   (p.fixos||[]).forEach(f=>{
     const ex=S.fixos.find(x=>norm(x.desc)===norm(f.desc));
-    upsertItem('fixos',{id:ex?ex.id:uid(),desc:f.desc,valor:f.valor,cat:f.cat,dia:f.dia||1,ate:f.ate||'',cartao:f.cartao?(idCartao[norm(f.cartao)]||null):null,autor:(ex&&ex.autor)||autor,desde:ex?ex.desde:(f.desde||mesKey(new Date()))});
+    upsertItem('fixos',{id:ex?ex.id:uid(),desc:f.desc,valor:f.valor,cat:f.cat,dia:f.dia||1,ate:f.ate||'',cartao:f.cartao?(idCartao[norm(f.cartao)]||null):null,parcelaTotal:f.parcelaTotal||(ex&&ex.parcelaTotal)||null,parcelaInicio:f.parcelaInicio||(ex&&ex.parcelaInicio)||null,autor:(ex&&ex.autor)||autor,desde:ex?ex.desde:(f.desde||mesKey(new Date()))});
   });
   (p.metas||[]).forEach(m=>{
     const ex=S.metas.find(x=>norm(x.nome)===norm(m.nome));

@@ -345,8 +345,13 @@ function aplicarAjuste(k,o){const a=ajusteDe(k,o.id);if(a){if(a.valor!=null)o.va
 function fixosDoMes(k){
   return S.fixos.filter(f=>!f.ate||f.ate>=k).filter(f=>!f.desde||f.desde<=k).map(f=>({id:'fx'+f.id,fixo:true,tipo:'gasto',valor:f.valor,cat:f.cat,desc:f.desc+(f.parcelaTotal&&f.parcelaInicio?` (${mesesEntre(f.parcelaInicio,k)+1}/${f.parcelaTotal})`:''),cartao:f.cartao||null,autor:f.autor||null,data:k+'-'+String(Math.min(f.dia||1,diasNoMes(k))).padStart(2,'0')})).map(o=>aplicarAjuste(k,o));
 }
+/* n-ésimo dia útil do mês: pula sábado, domingo e feriados nacionais
+   (fixos + Sexta-feira Santa). Feriado estadual/municipal não entra. */
+function pascoa(y){const a=y%19,b=Math.floor(y/100),c=y%100,d=Math.floor(b/4),e=b%4,f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),h=(19*a+b-d-g+15)%30,i=Math.floor(c/4),l=(32+2*e+2*i-h-(c%4))%7,m=Math.floor((a+11*h+22*l)/451),mes=Math.floor((h+l-7*m+114)/31),dia=((h+l-7*m+114)%31)+1;return new Date(y,mes-1,dia)}
+function feriado(d){const md=String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');if(['01-01','04-21','05-01','09-07','10-12','11-02','11-15','11-20','12-25'].includes(md))return true;const sx=pascoa(d.getFullYear());sx.setDate(sx.getDate()-2);return d.getMonth()===sx.getMonth()&&d.getDate()===sx.getDate()}
+function diaUtil(k,n){const[y,m]=k.split('-').map(Number);let c=0;for(let dd=1;dd<=diasNoMes(k);dd++){const d=new Date(y,m-1,dd),w=d.getDay();if(w===0||w===6||feriado(d))continue;if(++c===n)return dd}return diasNoMes(k)}
 function rendasDoMes(k){
-  return S.rendas.filter(r=>!r.ate||r.ate>=k).filter(r=>!r.desde||r.desde<=k).map(r=>({id:'rd'+r.id,fixo:true,tipo:'ganho',valor:r.valor,cat:'Renda',desc:r.desc,autor:r.autor||null,data:k+'-'+String(Math.min(r.dia||1,diasNoMes(k))).padStart(2,'0')})).map(o=>aplicarAjuste(k,o));
+  return S.rendas.filter(r=>!r.ate||r.ate>=k).filter(r=>!r.desde||r.desde<=k).map(r=>({id:'rd'+r.id,fixo:true,tipo:'ganho',valor:r.valor,cat:'Renda',desc:r.desc+(r.diaUtil?` (${r.diaUtil}º dia útil)`:''),autor:r.autor||null,data:k+'-'+String(r.diaUtil?diaUtil(k,r.diaUtil):Math.min(r.dia||1,diasNoMes(k))).padStart(2,'0')})).map(o=>aplicarAjuste(k,o));
 }
 function txMes(k){
   const reais=S.tx.filter(t=>t.data.startsWith(k));
@@ -910,7 +915,7 @@ function salvarRenda(){
   if(!desc||!(valor>0)){haptic(20);return}
   const dia=Math.min(Math.max(+document.getElementById('redia').value||1,1),31);
   const ate=document.getElementById('reate').value||'';
-  const o={id:RE?RE.id:uid(),desc,valor,autor:autor||null,dia,ate,desde:RE?RE.desde:mesKey(new Date())};
+  const o={...(RE||{}),id:RE?RE.id:uid(),desc,valor,autor:autor||null,dia,ate,desde:RE?RE.desde:mesKey(new Date())};
   upsertItem('rendas',o);
   recomputeOrcFromDistribuicao();save();cloudSaveConfig();
   haptic();flashSucesso();fechar();render();
@@ -1133,12 +1138,12 @@ function mesclarPlano(p){
   const idCartao={};
   (p.cartoes||[]).forEach(c=>{
     const ex=S.cartoes.find(x=>norm(x.nome)===norm(c.nome));
-    const o=ex?{...ex,limite:c.limite}:{id:uid(),nome:c.nome,final:'',limite:c.limite,fechamento:c.fechamento||1,vencimento:c.vencimento||null,cor:c.cor||CARD_COLORS[S.cartoes.length%CARD_COLORS.length].join('|')};
+    const o=ex?{...ex,limite:c.limite,...(c.fechamento?{fechamento:c.fechamento}:{}),...(c.vencimento?{vencimento:c.vencimento}:{})}:{id:uid(),nome:c.nome,final:'',limite:c.limite,fechamento:c.fechamento||1,vencimento:c.vencimento||null,cor:c.cor||CARD_COLORS[S.cartoes.length%CARD_COLORS.length].join('|')};
     upsertItem('cartoes',o);idCartao[norm(c.nome)]=o.id;
   });
   (p.rendas||[]).forEach(r=>{
     const ex=S.rendas.find(x=>norm(x.desc)===norm(r.desc));
-    upsertItem('rendas',{id:ex?ex.id:uid(),desc:r.desc,valor:r.valor,autor:(ex&&ex.autor)||autor,dia:r.dia||1,ate:r.ate||'',desde:ex?ex.desde:(r.desde||mesKey(new Date()))});
+    upsertItem('rendas',{...(ex||{}),id:ex?ex.id:uid(),desc:r.desc,valor:r.valor,autor:(ex&&ex.autor)||autor,dia:r.dia||1,diaUtil:r.diaUtil||null,ate:r.ate||'',desde:ex?ex.desde:(r.desde||mesKey(new Date()))});
   });
   (p.fixos||[]).forEach(f=>{
     const ex=S.fixos.find(x=>norm(x.desc)===norm(f.desc));
@@ -1146,7 +1151,7 @@ function mesclarPlano(p){
   });
   (p.metas||[]).forEach(m=>{
     const ex=S.metas.find(x=>norm(x.nome)===norm(m.nome));
-    upsertItem('metas',{id:ex?ex.id:uid(),nome:m.nome,alvo:m.alvo,atual:ex?ex.atual:(m.atual||0)});
+    upsertItem('metas',{id:ex?ex.id:uid(),nome:m.nome,alvo:m.alvo,atual:m.atual!=null?m.atual:(ex?ex.atual:0)});
   });
   Object.entries(p.orc||{}).forEach(([c,v])=>S.orc[c]=v);
   save();cloudSaveConfig();

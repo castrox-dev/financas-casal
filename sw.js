@@ -1,4 +1,4 @@
-const CACHE = 'financas-v27';
+const CACHE = 'financas-v28';
 const ESTADO = 'financas-estado'; // escrito pelo app; o push lê daqui
 const FILES = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png', './icon-180.png'];
 
@@ -62,6 +62,7 @@ function montar(tipo, est) {
     const q = fat.dias === 0 ? 'vence hoje' : fat.dias === 1 ? 'vence amanhã' : `vence em ${fat.dias} dias`;
     return { title: `Fatura do ${fat.nome} ${q}`, body: `${BRL(fat.total)}. Paga o valor inteiro pra não cair no rotativo.` };
   }
+  if (est && est.alerta) return { title: 'Atenção no orçamento', body: est.alerta };
   if (est && est.porDia > 0) return { title: 'Bom dia!', body: `Hoje dá pra gastar até ${BRL(est.porDia)} sem sair do plano.` };
   if (est && est.porDia <= 0) return { title: 'Bom dia!', body: 'O orçamento do mês já foi. Hoje, só o essencial.' };
   return { title: 'Bom dia!', body: 'Abre o app pra ver quanto dá pra gastar hoje.' };

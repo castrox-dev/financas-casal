@@ -35,7 +35,37 @@ body{padding:env(safe-area-inset-top) 0 calc(104px + env(safe-area-inset-bottom)
 .wrap{max-width:520px;margin:0 auto;padding:16px;animation:rise .32s cubic-bezier(.32,.72,0,1)}
 @keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
 h1{font-size:28px;margin:6px 0 4px;font-weight:800;letter-spacing:-.02em}
-h2{font-size:13px;margin:22px 2px 10px;color:var(--mut);font-weight:700;text-transform:uppercase;letter-spacing:.06em}
+h2{font-size:20px;margin:26px 2px 10px;color:var(--txt);font-weight:700;letter-spacing:-.01em;display:flex;justify-content:space-between;align-items:baseline}
+h2 small{font-size:14px;font-weight:500;color:var(--acc)}
+/* hero: régua do mês (dinheiro usado x dias passados) */
+.hero{padding:20px 18px 18px}
+.hero .big{font-size:46px;line-height:1.05;margin:4px 0 14px}
+.regua{position:relative;height:12px;border-radius:99px;background:var(--card2);overflow:visible}
+.regua>i{position:absolute;left:0;top:0;bottom:0;border-radius:99px;transition:width .6s cubic-bezier(.32,.72,0,1)}
+.regua>b{position:absolute;top:-5px;bottom:-5px;width:3px;border-radius:2px;background:var(--txt);transform:translateX(-1.5px)}
+.regua-leg{display:flex;justify-content:space-between;gap:10px;margin-top:9px;font-size:13px;color:var(--mut)}
+.ritmo{margin-top:12px;font-size:15px;line-height:1.35}
+/* linhas de lista */
+.lin{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--card2)}
+.lin:last-child{border:0}
+.lin[onclick]:active{opacity:.6}
+.lin .ico{flex-shrink:0;width:36px;height:36px;border-radius:11px;background:var(--card2);display:flex;align-items:center;justify-content:center;color:var(--txt)}
+.lin .dia{flex-shrink:0;width:36px;text-align:center;line-height:1.05}
+.lin .dia b{display:block;font-size:18px}.lin .dia span{font-size:11px;color:var(--mut)}
+.lin .mid{flex:1;min-width:0}
+.lin .tit{font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lin .sub{font-size:13px;color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
+.lin .val{flex-shrink:0;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums;font-weight:600;font-size:16px}
+.chip{display:inline-block;font-size:11px;font-weight:600;padding:2px 7px;border-radius:99px;margin-top:4px}
+.chip.ok{background:color-mix(in srgb,var(--ok) 18%,transparent);color:var(--ok)}
+.chip.pend{background:var(--card2);color:var(--mut)}
+.chip.late{background:color-mix(in srgb,var(--bad) 18%,transparent);color:var(--bad)}
+.diahead{font-size:13px;color:var(--mut);font-weight:600;margin:16px 4px 6px}
+.diahead:first-child{margin-top:4px}
+.filtro{display:flex;background:var(--card);border-radius:12px;padding:3px;margin-bottom:12px}
+.filtro button{flex:1;border:0;background:none;color:var(--mut);font-size:14px;font-weight:600;padding:8px 4px;border-radius:9px;white-space:nowrap}
+.filtro button.on{background:var(--card3);color:var(--txt)}
+.trio{display:flex;gap:8px}.trio>div{flex:1;min-width:0}.trio b{display:block;font-size:17px;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .card{background:var(--card);border-radius:18px;padding:16px;margin-bottom:12px}
 .big{font-size:38px;font-weight:800;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
 .mut{color:var(--mut);font-size:13px}
@@ -351,7 +381,7 @@ function pascoa(y){const a=y%19,b=Math.floor(y/100),c=y%100,d=Math.floor(b/4),e=
 function feriado(d){const md=String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');if(['01-01','04-21','05-01','09-07','10-12','11-02','11-15','11-20','12-25'].includes(md))return true;const sx=pascoa(d.getFullYear());sx.setDate(sx.getDate()-2);return d.getMonth()===sx.getMonth()&&d.getDate()===sx.getDate()}
 function diaUtil(k,n){const[y,m]=k.split('-').map(Number);let c=0;for(let dd=1;dd<=diasNoMes(k);dd++){const d=new Date(y,m-1,dd),w=d.getDay();if(w===0||w===6||feriado(d))continue;if(++c===n)return dd}return diasNoMes(k)}
 function rendasDoMes(k){
-  return S.rendas.filter(r=>!r.ate||r.ate>=k).filter(r=>!r.desde||r.desde<=k).map(r=>({id:'rd'+r.id,fixo:true,tipo:'ganho',valor:r.valor,cat:'Renda',desc:r.desc+(r.diaUtil?` (${r.diaUtil}º dia útil)`:''),autor:r.autor||null,data:k+'-'+String(r.diaUtil?diaUtil(k,r.diaUtil):Math.min(r.dia||1,diasNoMes(k))).padStart(2,'0')})).map(o=>aplicarAjuste(k,o));
+  return S.rendas.filter(r=>!r.ate||r.ate>=k).filter(r=>!r.desde||r.desde<=k).map(r=>({id:'rd'+r.id,fixo:true,tipo:'ganho',valor:r.valor,cat:'Renda',desc:r.desc,diaUtilN:r.diaUtil||null,autor:r.autor||null,data:k+'-'+String(r.diaUtil?diaUtil(k,r.diaUtil):Math.min(r.dia||1,diasNoMes(k))).padStart(2,'0')})).map(o=>aplicarAjuste(k,o));
 }
 function txMes(k){
   const reais=S.tx.filter(t=>t.data.startsWith(k));
@@ -746,68 +776,117 @@ function seletorMes(){
 }
 function mudaMes(n){haptic(6);mesRef=addMes(mesRef,n);render()}
 
-function vHoje(){
-  const t=totais(mesRef),p=podeGastarHoje(mesRef);
-  const semBase=p.base<=0;
-  const pctUsado=!semBase?Math.min(t.gasto/p.base*100,100):0;
-  let h=seletorMes();
-  /* lembrete do dia: depois das 18h, se nada foi lançado hoje */
-  if(mesRef===mesKey(new Date())&&new Date().getHours()>=18&&!S.tx.some(x=>x.data===hojeStr()))
-    h+=`<div class="card" onclick="document.getElementById('fab').click()" style="cursor:pointer"><b>Gastou algo hoje?</b><div class="mut">Nada lançado ainda hoje. Toque aqui pra lançar agora, leva 3 segundos. Se não gastou nada, melhor ainda.</div></div>`;
-  h+=`<div class="card"><div class="row" style="align-items:center">
-  <div style="flex:1">
-  <div class="mut">Pode gastar hoje</div>
-  ${semBase?`<div class="big mut">—</div><div class="mut">Defina seu salário ou orçamentos na aba <b>Mais</b>/<b>Orçamento</b> pra eu calcular.</div>`:
-  `<div class="big ${p.porDia<0?'neg':''}">${R(p.porDia)}</div>
-   <div class="mut">${R(p.sobra)} sobrando ÷ ${p.dias} dia${p.dias>1?'s':''} restante${p.dias>1?'s':''}</div>`}
-  </div>
-  ${semBase?'':`<div style="position:relative;flex-shrink:0">${ring(pctUsado,72,cor(pctUsado))}<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700">${Math.round(pctUsado)}%</div></div>`}
-  </div></div>`;
-  const pessoasRenda=Object.entries(t.porPessoa).sort((a,b)=>b[1]-a[1]);
-  h+=`<div class="card"><div class="row"><div><div class="mut">Gasto no mês</div><div style="font-size:24px;font-weight:700" class="tabular">${R(t.gasto)}</div></div>
-  <div style="text-align:right"><div class="mut">Entradas</div><div style="font-size:24px;font-weight:700" class="pos tabular">${R(t.renda)}</div></div></div>
-  <div class="mut" style="margin-top:8px">Saldo do mês: <b class="${t.saldo<0?'neg':'pos'}">${R(t.saldo)}</b></div>
-  ${pessoasRenda.length>1?`<div class="mut" style="margin-top:4px">${pessoasRenda.map(([n,v])=>`${esc(n)}: ${R(v)}`).join(' · ')}</div>`:''}
-  </div>`;
-  const cats=Object.entries(t.porCat).sort((a,b)=>b[1]-a[1]);
-  h+='<h2>Pra onde foi</h2><div class="card">';
-  if(!cats.length)h+='<div class="empty">Nada lançado ainda.<br>Toque no + pra começar.</div>';
-  cats.forEach(([c,v])=>{
-    const teto=+S.orc[c]||0,pc=teto?v/teto*100:0;
-    h+=`<div class="item"><div class="row"><span>${catIcon(c)} ${esc(c)}</span><b class="tabular">${R(v)}</b></div>${teto?`<div class="bar"><i style="width:${Math.min(pc,100)}%;background:${cor(pc,soFixo(mesRef,c))}"></i></div><div class="mut" style="margin-top:4px">${Math.round(pc)}% de ${R(teto)}</div>`:''}</div>`;
+/* o que é "dia a dia" (variável) e o que é conta fixa, por categoria */
+function diaADia(k){
+  const t=totais(k),fx={};
+  fixosDoMes(k).forEach(f=>fx[f.cat]=(fx[f.cat]||0)+f.valor);
+  const cats=new Set([...Object.keys(S.orc),...Object.keys(t.porCat)]);
+  const out=[];let teto=0,gasto=0;
+  cats.forEach(c=>{
+    const vt=Math.max(0,(+S.orc[c]||0)-(fx[c]||0)),vg=Math.max(0,(t.porCat[c]||0)-(fx[c]||0));
+    if(vt>0.5||vg>0.005){out.push({cat:c,teto:vt,gasto:vg});teto+=vt;gasto+=vg}
   });
-  h+='</div>';
+  return{cats:out.sort((a,b)=>b.gasto-a.gasto||b.teto-a.teto),teto,gasto};
+}
+function rotuloDia(iso){
+  const h=hojeStr(),d=new Date(iso+'T12:00:00'),o=new Date();o.setDate(o.getDate()-1);
+  const ontem=o.getFullYear()+'-'+String(o.getMonth()+1).padStart(2,'0')+'-'+String(o.getDate()).padStart(2,'0');
+  if(iso===h)return 'Hoje';if(iso===ontem)return 'Ontem';
+  const s=d.toLocaleDateString('pt-BR',{weekday:'long',day:'numeric',month:'long'});return s.charAt(0).toUpperCase()+s.slice(1);
+}
+function naFatura(t){return t.fixo&&t.tipo==='gasto'&&!!t.cartao}
+function pendente(t){return t.fixo&&!t.ok&&!naFatura(t)}
+function chipStatus(t){
+  if(!t.fixo)return'';
+  if(naFatura(t))return`<span class="chip pend">na fatura</span>`;
+  if(t.ok)return`<span class="chip ok">${t.tipo==='ganho'?'caiu':'pago'}</span>`;
+  if(t.data<hojeStr())return`<span class="chip late">atrasado</span>`;
+  return`<span class="chip pend">${t.tipo==='ganho'?'a receber':'a pagar'}</span>`;
+}
+function linhaTx(t,modo){
+  const cc=t.cartao?S.cartoes.find(c=>c.id===t.cartao):null;
+  const sub=[t.tipo==='ganho'?(t.diaUtilN?t.diaUtilN+'º dia útil':'Entrada'):esc(t.cat)];
+  if(cc)sub.push(esc(cc.nome));else if(t.fixo&&t.tipo==='gasto')sub.push('Pix/dinheiro');
+  if(t.autor&&cloudCfg)sub.push(esc(t.autor));
+  const esq=modo==='data'?`<div class="dia"><b>${+t.data.slice(8)}</b><span>${new Date(t.data+'T12:00:00').toLocaleDateString('pt-BR',{weekday:'short'}).replace('.','')}</span></div>`:`<div class="ico">${t.tipo==='ganho'?ic('renda'):catIcon(t.cat)}</div>`;
+  return `<div class="lin" onclick="${t.fixo?`editarOcorrencia('${t.id}')`:`editarLanc('${t.id}')`}">${esq}<div class="mid"><div class="tit">${esc(t.desc||t.cat)}</div><div class="sub">${sub.join(', ')}</div></div><div class="val ${t.tipo==='ganho'?'pos':''}">${t.tipo==='ganho'?'+':'−'}${R(t.valor).replace('-','')}<br>${chipStatus(t)}</div></div>`;
+}
+function vHoje(){
+  const t=totais(mesRef),atual=mesKey(new Date()),dd=diaADia(mesRef);
+  let h=seletorMes();
+  if(mesRef===atual&&new Date().getHours()>=18&&!S.tx.some(x=>x.data===hojeStr()))
+    h+=`<div class="card" onclick="document.getElementById('fab').click()" style="cursor:pointer"><b>Gastou algo hoje?</b><div class="mut" style="margin-top:2px">Nada lançado ainda. Toque pra lançar.</div></div>`;
+  /* hero */
+  const resto=dd.teto-dd.gasto,dias=diasRestantes(mesRef),tot=diasNoMes(mesRef);
+  const usado=dd.teto>0?Math.min(dd.gasto/dd.teto*100,100):0;
+  if(dd.teto<=0){
+    h+=`<div class="card hero"><div class="mut">Pode gastar hoje</div><div class="big mut">—</div><div class="mut">Defina o orçamento por categoria na aba Orçamento pra eu calcular.</div></div>`;
+  }else{
+    let titulo,valor,ritmo='';
+    const passados=mesRef===atual?new Date().getDate():mesRef<atual?tot:0;
+    const tempo=passados/tot*100;
+    if(mesRef===atual){
+      titulo='Pode gastar hoje';valor=resto/dias;
+      const esperado=dd.teto*passados/tot,dif=esperado-dd.gasto;
+      ritmo=resto<0?`Você passou ${R(-resto)} do dia a dia deste mês.`:Math.abs(dif)<5?'Você está no ritmo certo do mês.':dif>0?`Você está ${R(dif)} abaixo do ritmo. Tá sobrando.`:`Você está ${R(-dif)} acima do ritmo. Segura um pouco.`;
+    }else if(mesRef<atual){titulo='Sobrou do dia a dia';valor=resto}
+    else{titulo='Dia a dia do mês';valor=dd.teto;ritmo=`Dá uns ${R(dd.teto/tot)} por dia.`}
+    const corBar=usado>=100?'var(--bad)':usado>tempo+10?'var(--warn)':'var(--ok)';
+    h+=`<div class="card hero"><div class="mut">${titulo}</div><div class="big ${valor<0?'neg':''}">${R(valor)}</div>
+    <div class="regua"><i style="width:${usado}%;background:${corBar}"></i>${passados>0&&passados<tot?`<b style="left:${tempo}%"></b>`:''}</div>
+    <div class="regua-leg"><span>${R(dd.gasto)} de ${R(dd.teto)} usados</span><span>${mesRef===atual?`dia ${passados} de ${tot}`:''}</span></div>
+    ${ritmo?`<div class="ritmo">${ritmo}</div>`:''}</div>`;
+  }
+  /* próximas contas */
+  const fixos=txMes(mesRef).filter(x=>x.fixo);
+  const pend=fixos.filter(pendente).sort((a,b)=>a.data.localeCompare(b.data)||(a.tipo==='ganho'?-1:1));
+  if(fixos.length){
+    h+=`<h2>Próximas contas${pend.length>5?`<small onclick="filtroExt='fixos';tab='extrato';render()">Ver todas</small>`:''}</h2><div class="card" style="padding:4px 16px">`;
+    if(!pend.length)h+=`<div class="empty" style="padding:18px 0">Tudo pago e recebido neste mês.</div>`;
+    pend.slice(0,5).forEach(x=>h+=linhaTx(x,'data'));
+    h+='</div>';
+  }
+  /* dia a dia */
+  if(dd.cats.length){
+    h+='<h2>Dia a dia</h2><div class="card">';
+    dd.cats.forEach(c=>{
+      const pc=c.teto?c.gasto/c.teto*100:100;
+      h+=`<div class="item" onclick="editarOrc('${esc(c.cat)}')"><div class="row"><span>${catIcon(c.cat)} ${esc(c.cat)}</span><span class="tabular"><b>${R(c.gasto)}</b> <span class="mut">de ${c.teto?R(c.teto):'sem teto'}</span></span></div>${c.teto?`<div class="bar"><i style="width:${Math.min(pc,100)}%;background:${cor(pc)}"></i></div>`:''}</div>`;
+    });
+    h+='</div>';
+  }
+  /* contas fixas e saldo */
+  const fg=fixos.filter(x=>x.tipo==='gasto'),fp=fg.filter(x=>!naFatura(x)),pagos=fp.filter(x=>x.ok).length;
+  h+=`<div class="card" onclick="filtroExt='fixos';tab='extrato';render()" style="cursor:pointer"><div class="row"><div><b>Contas fixas</b><div class="mut">${pagos} de ${fp.length} pagas${fg.length>fp.length?`, ${fg.length-fp.length} no cartão`:''}</div></div><b class="tabular">${R(fg.reduce((s,x)=>s+x.valor,0))}</b></div></div>`;
+  h+=`<div class="card trio"><div><span class="mut">Entradas</span><b class="pos">${R(t.renda)}</b></div><div><span class="mut">Saídas</span><b>${R(t.gasto)}</b></div><div><span class="mut">Saldo</span><b class="${t.saldo<0?'neg':''}">${R(t.saldo)}</b></div></div>`;
   const insights=gerarInsights(mesRef);
   if(insights.length||IA_PROXY_URL){
-    h+='<h2>Conselhos do mês</h2>';
-    h+='<div id="iaInsight"></div>';
+    h+='<h2>Conselhos do mês</h2><div id="iaInsight"></div>';
     insights.forEach(ins=>{
       const bg=ins.tone==='warn'?'rgba(255,69,58,.12)':ins.tone==='ok'?'rgba(48,209,88,.12)':'rgba(255,159,10,.12)';
-      h+=`<div class="card" style="background:${bg};display:flex;gap:10px;align-items:flex-start"><span style="flex-shrink:0">${ic(ins.icon,19)}</span><span style="font-size:13px;line-height:1.4">${ins.texto}</span></div>`;
+      h+=`<div class="card" style="background:${bg};display:flex;gap:10px;align-items:flex-start"><span style="flex-shrink:0">${ic(ins.icon,19)}</span><span style="font-size:14px;line-height:1.4">${ins.texto}</span></div>`;
     });
   }
   return h;
 }
+let filtroExt='tudo';
 function vExtrato(){
-  const l=txMes(mesRef);
+  const todos=txMes(mesRef);
   let h=seletorMes();
-  const pend=l.filter(t=>t.fixo&&!t.ok);
+  const pend=todos.filter(pendente);
   if(pend.length){
     const pg=pend.filter(t=>t.tipo==='gasto').reduce((s,t)=>s+t.valor,0),rc=pend.filter(t=>t.tipo==='ganho').reduce((s,t)=>s+t.valor,0);
-    h+=`<div class="card"><div class="row"><div><div class="mut">Ainda a pagar</div><b class="tabular">${R(pg)}</b></div><div style="text-align:right"><div class="mut">Ainda a receber</div><b class="tabular pos">${R(rc)}</b></div></div><div class="mut" style="margin-top:6px">Toque num fixo ou renda pra marcar que já pagou/caiu ou mudar o valor deste mês.</div></div>`;
+    h+=`<div class="card trio"><div><span class="mut">Falta pagar</span><b>${R(pg)}</b></div><div><span class="mut">Falta receber</span><b class="pos">${R(rc)}</b></div></div>`;
   }
-  h+='<div class="card">';
-  if(!l.length)h+='<div class="empty">Sem lançamentos neste mês.</div>';
-  l.forEach(t=>{
-    const d=t.data.slice(8)+'/'+t.data.slice(5,7);
-    const cc=t.cartao?S.cartoes.find(c=>c.id===t.cartao):null;
-    const sub=[d,esc(t.cat)];
-    if(cc)sub.push(esc(cc.nome));
-    if(t.autor)sub.push(esc(t.autor));
-    const st=t.fixo?(t.ok?` <span class="pos">✓ ${t.tipo==='ganho'?'caiu':'pago'}</span>`:` <span class="mut">(${t.tipo==='ganho'?'a receber':'a pagar'})</span>`)+(t.ajustado?' <span class="mut">· valor do mês</span>':''):'';
-    h+=`<div class="item" onclick="${t.fixo?`editarOcorrencia('${t.id}')`:`editarLanc('${t.id}')`}"><div class="row"><div>${t.tipo==='ganho'?ic('renda'):catIcon(t.cat)} ${esc(t.desc||t.cat)}${st}<div class="mut">${sub.join(' · ')}</div></div><b class="tabular ${t.tipo==='ganho'?'pos':''}">${t.tipo==='ganho'?'+':'-'}${R(t.valor).replace('-','')}</b></div></div>`;
+  h+=`<div class="filtro">${[['tudo','Tudo'],['gastos','Gastos'],['fixos','Fixos']].map(([k,l])=>`<button class="${filtroExt===k?'on':''}" onclick="filtroExt='${k}';render()">${l}</button>`).join('')}</div>`;
+  const l=todos.filter(t=>filtroExt==='tudo'||(filtroExt==='fixos'?t.fixo:!t.fixo));
+  if(!l.length)return h+`<div class="card"><div class="empty">${filtroExt==='gastos'?'Nenhum gasto lançado neste mês.<br>Toque no + pra lançar.':'Nada neste mês.'}</div></div>`;
+  const dias=[...new Set(l.map(t=>t.data))].sort().reverse();
+  dias.forEach(d=>{
+    const doDia=l.filter(t=>t.data===d);
+    h+=`<div class="diahead">${rotuloDia(d)}</div><div class="card" style="padding:4px 16px;margin-bottom:4px">${doDia.map(t=>linhaTx(t)).join('')}</div>`;
   });
-  return h+'</div>';
+  return h;
 }
 function vRendas(){
   let h='<h1>Rendas</h1><div class="card">';

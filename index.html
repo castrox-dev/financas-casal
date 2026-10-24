@@ -597,6 +597,18 @@ function cicloAberto(c,ref){
 }
 /* fatura que vence nos próximos 5 dias: a do ciclo que fechou no
    fechamento anterior ao vencimento. */
+function faturasProximas(){
+  const out=[],hoje=new Date();hoje.setHours(0,0,0,0);
+  S.cartoes.filter(c=>c.vencimento).forEach(c=>{
+    let v=new Date(hoje.getFullYear(),hoje.getMonth(),c.vencimento);
+    if(v<hoje)v=new Date(hoje.getFullYear(),hoje.getMonth()+1,c.vencimento);
+    const fm=c.vencimento>c.fechamento?v.getMonth():v.getMonth()-1;
+    const fd=new Date(v.getFullYear(),fm,Math.min(c.fechamento,new Date(v.getFullYear(),fm+1,0).getDate()));
+    const total=txsCartaoCiclo(c,cicloAberto(c,fd)).reduce((s,t)=>s+t.valor,0);
+    out.push({nome:c.nome,vence:v.getFullYear()+'-'+String(v.getMonth()+1).padStart(2,'0')+'-'+String(v.getDate()).padStart(2,'0'),dias:Math.round((v-hoje)/864e5),total});
+  });
+  return out;
+}
 function avisosFatura(){
   const out=[],hoje=new Date();hoje.setHours(0,0,0,0);
   S.cartoes.filter(c=>c.vencimento).forEach(c=>{
@@ -611,6 +623,64 @@ function avisosFatura(){
     out.push({tone:'warn',icon:'alerta',texto:`Fatura do ${esc(c.nome)} ${quando}: ${R(total)}. Pague o valor total pra não cair no rotativo.`});
   });
   return out;
+}
+/* ---------- notificações push ----------
+   O aparelho se inscreve e guarda a inscrição em Firestore push/{id}
+   (login anônimo via REST, funciona mesmo sem o modo casal). Um GitHub
+   Actions agendado manda um "toque" de manhã e à noite; o service worker
+   monta o texto com o estado que o app deixa salvo no Cache Storage. */
+const VAPID_PUBLIC='BPeFwNTEahJ_ZG1EfVSt3J2dN8oQL2sK8ZTj9L4Kf0Dj9jsfvk3DgFzR6mTS5l6BTwBbRY8cvZtF0V8nMg7vzmU';
+function pushCfg(){try{return JSON.parse(localStorage.getItem('financas.push')||'null')}catch(e){return null}}
+function pushSuportado(){return 'serviceWorker' in navigator&&'PushManager' in window&&'Notification' in window}
+function instaladoNaTela(){return navigator.standalone===true||matchMedia('(display-mode: standalone)').matches}
+function b64ToU8(b){const p='='.repeat((4-b.length%4)%4),r=atob((b+p).replace(/-/g,'+').replace(/_/g,'/'));return Uint8Array.from(r,c=>c.charCodeAt(0))}
+async function gravarInscricao(cfg,sub){
+  const a=await fetch('https://identitytoolkit.googleapis.com/v1/accounts:signUp?key='+FIREBASE_CFG.apiKey,{method:'POST',headers:{'Content-Type':'application/json'},body:'{"returnSecureToken":true}'}).then(r=>r.json());
+  if(!a.idToken)throw new Error('login');
+  const url=`https://firestore.googleapis.com/v1/projects/${FIREBASE_CFG.projectId}/databases/(default)/documents/push/${cfg.id}`;
+  const r=await fetch(url,{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+a.idToken},body:JSON.stringify({fields:{sub:{stringValue:JSON.stringify(sub)},manha:{booleanValue:!!cfg.manha},noite:{booleanValue:!!cfg.noite},atualizado:{timestampValue:new Date().toISOString()}}})});
+  if(!r.ok)throw new Error('firestore '+r.status);
+}
+async function ativarNotificacoes(){
+  if(!pushSuportado()||!instaladoNaTela()){alert('No iPhone, notificação só funciona com o app instalado: no Safari, toque em Compartilhar → "Adicionar à Tela de Início", abra o app por lá e ative aqui de novo.');return}
+  try{
+    if(await Notification.requestPermission()!=='granted'){alert('Notificações bloqueadas. Dá pra liberar em Ajustes → Notificações → Finanças.');return}
+    const reg=await navigator.serviceWorker.ready;
+    const sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:b64ToU8(VAPID_PUBLIC)});
+    const cfg={...(pushCfg()||{manha:true,noite:true}),id:(pushCfg()||{}).id||uid()};
+    await gravarInscricao(cfg,sub.toJSON());
+    localStorage.setItem('financas.push',JSON.stringify(cfg));salvarEstadoNotif();
+    haptic();flashSucesso();render();
+  }catch(e){console.error('[push]',e);alert('Não consegui ativar agora ('+e.message+'). Confira a internet e tente de novo.')}
+}
+async function mudarPreferenciaPush(campo){
+  const cfg=pushCfg();if(!cfg)return;cfg[campo]=!cfg[campo];
+  try{const reg=await navigator.serviceWorker.ready;const sub=await reg.pushManager.getSubscription();if(sub)await gravarInscricao(cfg,sub.toJSON());localStorage.setItem('financas.push',JSON.stringify(cfg));render()}catch(e){alert('Não consegui salvar agora.')}
+}
+function testarNotificacao(){navigator.serviceWorker.ready.then(r=>r.showNotification('Finanças',{body:'Tudo certo! É assim que os avisos vão aparecer.',icon:'icon-192.png',tag:'teste'}))}
+/* o que o service worker usa pra escrever a notificação */
+let ultimoEstado='';
+function salvarEstadoNotif(){
+  try{
+    if(!('caches' in window))return;
+    const k=mesKey(new Date()),p=podeGastarHoje(k),hj=hojeStr();
+    const deHoje=S.tx.filter(t=>t.data===hj&&t.tipo==='gasto');
+    const est={hoje:hj,lancouHoje:deHoje.length>0,gastoHoje:deHoje.reduce((s,t)=>s+t.valor,0),porDia:p.porDia,sobra:p.sobra,faturas:faturasProximas().filter(f=>f.total>0)};
+    const j=JSON.stringify(est);if(j===ultimoEstado)return;ultimoEstado=j;
+    caches.open('financas-estado').then(c=>c.put('./estado.json',new Response(j,{headers:{'Content-Type':'application/json'}})));
+  }catch(e){}
+}
+function cardNotificacoes(){
+  const cfg=pushCfg(),on=cfg&&'Notification' in window&&Notification.permission==='granted';
+  let h='<h2>Notificações</h2><div class="card">';
+  if(!on){
+    h+=`<div class="mut" style="margin-bottom:10px">Receba de manhã quanto dá pra gastar no dia e aviso de fatura vencendo, e à noite o "gastou algo hoje?".${instaladoNaTela()?'':' No iPhone, precisa estar instalado na Tela de Início (Safari → Compartilhar → Adicionar à Tela de Início).'}</div><button class="btn" onclick="ativarNotificacoes()">Ativar notificações</button>`;
+  }else{
+    h+=`<div class="item" onclick="mudarPreferenciaPush('manha')"><div class="row"><span>De manhã (9h): quanto dá pra gastar e faturas</span><b class="${cfg.manha?'pos':'mut'}">${cfg.manha?'Ligado':'Desligado'}</b></div></div>`;
+    h+=`<div class="item" onclick="mudarPreferenciaPush('noite')"><div class="row"><span>À noite (21h): gastou algo hoje?</span><b class="${cfg.noite?'pos':'mut'}">${cfg.noite?'Ligado':'Desligado'}</b></div></div>`;
+    h+=`<button class="btn sec" onclick="testarNotificacao()">Mandar uma de teste</button>`;
+  }
+  return h+'</div>';
 }
 function txsCartaoCiclo(c,ciclo){
   const meses=[...new Set([ciclo.inicio.slice(0,7),ciclo.fim.slice(0,7)])];
@@ -642,6 +712,7 @@ function render(){
   const el=document.getElementById('app');
   document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.t===tab));
   el.innerHTML=({hoje:vHoje,extrato:vExtrato,rendas:vRendas,orcamento:vOrc,mais:vMais})[tab]();
+  salvarEstadoNotif();
   const fab=document.getElementById('fab');
   fab.style.display=tab==='mais'?'none':'flex';
   fab.onclick=()=>{haptic();abrirLanc()};
@@ -845,6 +916,7 @@ function vMais(){
     </div>`;
   });
   h+=`<button class="btn sec" style="margin:12px 0 0" onclick="editarMeta()">+ Nova meta</button></div>`;
+  h+=cardNotificacoes();
   h+=`<h2>Backup</h2><div class="card"><div class="mut" style="margin-bottom:10px">Seus dados ficam só neste aparelho${cloudCfg?' (e sincronizados na nuvem do casal)':''}. Se limpar os dados do Safari, perde tudo, então exporte de vez em quando.</div><button class="btn" onclick="exportar()">Exportar backup</button><button class="btn sec" onclick="document.getElementById('imp').click()">Importar backup ou plano</button><input type="file" id="imp" accept=".json,application/json" class="hidden" onchange="importar(this)"></div>`;
   return h;
 }

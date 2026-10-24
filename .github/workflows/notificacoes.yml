@@ -1,0 +1,28 @@
+name: Notificações
+
+# Horários em UTC: 12:00 = 9h e 00:00 = 21h em Brasília.
+# O GitHub pode atrasar alguns minutos os agendamentos.
+on:
+  schedule:
+    - cron: '0 12 * * *'
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+    inputs:
+      tipo:
+        description: 'manha ou noite'
+        default: 'manha'
+
+jobs:
+  enviar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install --no-save web-push@3
+      - name: Enviar
+        env:
+          VAPID_PRIVATE: ${{ secrets.VAPID_PRIVATE }}
+          TIPO: ${{ github.event.inputs.tipo || (github.event.schedule == '0 0 * * *' && 'noite') || 'manha' }}
+        run: node scripts/enviar-push.mjs

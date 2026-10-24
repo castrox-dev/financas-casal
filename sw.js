@@ -1,6 +1,6 @@
-const CACHE = 'financas-v28';
+const CACHE = 'financas-v30';
 const ESTADO = 'financas-estado'; // escrito pelo app; o push lê daqui
-const FILES = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png', './icon-180.png'];
+const FILES = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png', './icon-180.png', './fonts/bricolage.woff2'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)).then(() => self.skipWaiting()));

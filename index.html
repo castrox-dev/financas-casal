@@ -8,23 +8,24 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Finanças">
+<link rel="preload" href="fonts/bricolage.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-180.png">
 <title>Finanças</title>
 <style>
 :root{
   color-scheme:dark;
-  --bg:#000000;--card:#1c1c1e;--card2:#2c2c2e;--card3:#3a3a3c;
-  --txt:#ffffff;--mut:#8e8e93;
-  --ok:#30d158;--warn:#ff9f0a;--bad:#ff453a;--acc:#0a84ff;--accink:#ffffff;
-  --navbg:rgba(44,44,46,.6);--sheetbg:rgba(28,28,30,.88);--scrim:rgba(0,0,0,.5);--glassedge:rgba(255,255,255,.14);
+  --bg:#0d1424;--card:#151e31;--card2:#1f2a42;--card3:#2b3955;
+  --txt:#f2f5fb;--mut:#8d99b3;--line:rgba(255,255,255,.06);
+  --ok:#3ddc97;--warn:#ffb547;--bad:#ff6b6b;--acc:#7c6cff;--accink:#ffffff;
+  --navbg:rgba(21,30,49,.74);--sheetbg:rgba(19,27,45,.94);--scrim:rgba(4,8,18,.6);--glassedge:rgba(255,255,255,.09);
 }
 @media (prefers-color-scheme:light){
   :root{
     color-scheme:light;
-    --bg:#f2f2f7;--card:#ffffff;--card2:#e5e5ea;--card3:#d1d1d6;
-    --txt:#000000;--mut:#8e8e93;
-    --ok:#34c759;--warn:#ff9500;--bad:#ff3b30;--acc:#007aff;--accink:#ffffff;
+    --bg:#f3f4fa;--card:#ffffff;--card2:#e9ecf5;--card3:#dadfec;
+    --txt:#10172a;--mut:#6b7590;--line:rgba(16,23,42,.06);
+    --ok:#12a86b;--warn:#d98a00;--bad:#e5484d;--acc:#6a5ae0;--accink:#ffffff;
     --navbg:rgba(255,255,255,.55);--sheetbg:rgba(255,255,255,.88);--scrim:rgba(0,0,0,.35);--glassedge:rgba(255,255,255,.85);
   }
 }
@@ -138,7 +139,7 @@ button.btn.del{background:var(--bad);color:#fff;box-shadow:none}
 .swatch.on{border-color:var(--txt)}
 
 /* consultor em chat: bolha flutuante + tela cheia */
-.fabChat{bottom:calc(166px + env(safe-area-inset-bottom));width:50px;height:50px;background:linear-gradient(165deg,#9a6bf0,#6d28d9);box-shadow:0 8px 24px -4px rgba(109,40,217,.55),inset 0 1px 0 rgba(255,255,255,.5)}
+.fabChat{bottom:calc(166px + env(safe-area-inset-bottom));width:50px;height:50px;background:var(--card2);color:var(--acc);border:1px solid color-mix(in srgb,var(--acc) 40%,transparent);box-shadow:0 8px 20px -6px rgba(0,0,0,.5)}
 .fabChat svg{width:22px;height:22px}
 .fabChat.badge::after{content:"";position:absolute;top:3px;right:3px;width:11px;height:11px;border-radius:50%;background:var(--bad);border:2px solid var(--bg)}
 .chatOverlay{position:fixed;inset:0;background:var(--bg);z-index:11;display:flex;flex-direction:column;opacity:0;transform:translateY(16px);transition:opacity .28s cubic-bezier(.32,.72,0,1),transform .28s cubic-bezier(.32,.72,0,1);padding-top:env(safe-area-inset-top)}
@@ -172,6 +173,51 @@ button.btn.del{background:var(--bad);color:#fff;box-shadow:none}
 .chatTyping span:nth-child(2){animation-delay:.15s}
 .chatTyping span:nth-child(3){animation-delay:.3s}
 @keyframes typingDot{0%,80%,100%{opacity:.3;transform:translateY(0)}40%{opacity:1;transform:translateY(-3px)}}
+
+@font-face{font-family:"Bricolage Grotesque";src:url(fonts/bricolage.woff2) format("woff2");font-weight:200 800;font-display:swap}
+/* ---------- identidade: noite azul, números em Bricolage, cor por categoria ---------- */
+.big,h1,h2,.trio b,.lin .val,.mesnav b,.lin .dia b{font-family:"Bricolage Grotesque",-apple-system,sans-serif}
+.card{border-radius:22px;border:1px solid var(--line);background:var(--card)}
+h1{font-size:30px;font-weight:800;letter-spacing:-.03em}
+h2{font-size:21px;font-weight:700;letter-spacing:-.02em}
+.mesnav{display:flex;align-items:center;justify-content:space-between;margin:2px 0 14px}
+.mesnav b{font-size:22px;font-weight:700;letter-spacing:-.02em}
+.mesnav button{width:38px;height:38px;border-radius:50%;border:1px solid var(--line);background:var(--card);color:var(--txt);font-size:20px;display:flex;align-items:center;justify-content:center;padding:0}
+.mesnav button:active{transform:scale(.9)}
+/* hero: o brilho muda com o ritmo do mês */
+.hero{position:relative;overflow:hidden;padding:22px 20px 20px;border-color:color-mix(in srgb,var(--glow) 26%,transparent)}
+.hero::before{content:"";position:absolute;inset:-40% -30% auto auto;width:300px;height:300px;border-radius:50%;background:radial-gradient(circle,color-mix(in srgb,var(--glow) 34%,transparent),transparent 68%);pointer-events:none}
+.hero>*{position:relative}
+.hero .mut{font-size:14px}
+.hero .big{font-size:56px;font-weight:800;letter-spacing:-.045em;margin:2px 0 16px}
+.hero .big small{font-size:.42em;font-weight:700;letter-spacing:0;margin-right:4px;color:var(--mut);vertical-align:.55em}
+.regua{height:10px;background:color-mix(in srgb,var(--txt) 8%,transparent)}
+.regua>b{background:var(--txt);box-shadow:0 0 0 3px var(--card)}
+.ritmo{font-size:15px;display:flex;gap:8px;align-items:flex-start}
+.ritmo i{flex-shrink:0;width:8px;height:8px;border-radius:50%;background:var(--glow);margin-top:6px;box-shadow:0 0 10px var(--glow)}
+/* bolhas de categoria */
+.bolha{flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;border-radius:12px;color:var(--c);background:color-mix(in srgb,var(--c) 16%,transparent)}
+.lin .ico{background:none;width:auto;height:auto}
+.lin .dia{width:40px;padding:5px 0;border-radius:12px;background:var(--card2)}
+.lin .dia b{font-size:17px}
+.lin .val{font-size:16px;font-weight:700}
+.catrow{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--line)}
+.catrow:last-child{border:0}
+.catrow .mid{flex:1;min-width:0}
+.catrow .top{display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+.catrow .top>span:first-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.catrow .top>span:last-child{flex-shrink:0;white-space:nowrap}
+.catrow .bar{height:6px;margin-top:8px;background:color-mix(in srgb,var(--txt) 7%,transparent)}
+.lin{border-bottom-color:var(--line)}
+.conversa{border:1px solid color-mix(in srgb,var(--acc) 35%,transparent);background:color-mix(in srgb,var(--acc) 9%,var(--card));padding-left:14px}
+.conversa .spark{color:var(--acc);display:flex}
+.conversa button{background:var(--acc)}
+.trio>div{background:var(--card2);border-radius:14px;padding:10px 12px}
+.trio{padding:10px}
+.trio b{font-size:16px;margin-top:2px}
+.filtro{border:1px solid var(--line)}
+.diahead{font-size:14px}
+nav{border-color:var(--glassedge)}
 </style>
 </head>
 <body>
@@ -248,6 +294,9 @@ function diasNoMes(k){const[y,m]=k.split('-').map(Number);return new Date(y,m,0)
 function diasRestantes(k){const h=new Date();if(mesKey(h)!==k){return k>mesKey(h)?diasNoMes(k):1}return diasNoMes(k)-h.getDate()+1}
 function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function ic(name,size=18){return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" style="stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;vertical-align:-4px"><use href="#i-${name}"/></svg>`}
+const CAT_COR={comida:'#ff9f43',mercado:'#2ed47a',transporte:'#4da3ff',moradia:'#ffc93c',lazer:'#ff6fb1',saude:'#ff7a7a',estudos:'#2ec4b6',compras:'#a78bfa',assinaturas:'#38d9f5',outros:'#94a3b8',renda:'#3ddc97'};
+function catId(n){const c=CATS.find(c=>c[1]===n);return c?c[0]:(n==='Entrada'||n==='Renda'?'renda':'outros')}
+function catBolha(n,size=38){const id=catId(n);return `<span class="bolha" style="--c:${CAT_COR[id]};width:${size}px;height:${size}px">${ic(id==='renda'?'renda':id,Math.round(size*.5))}</span>`}
 function catIcon(n){const c=CATS.find(c=>c[1]===n);return ic(c?c[0]:'outros')}
 function nomeMes(k){const[y,m]=k.split('-').map(Number);const s=new Date(y,m-1,1).toLocaleDateString('pt-BR',{month:'long',year:'numeric'});return s.charAt(0).toUpperCase()+s.slice(1)}
 function addMes(k,n){const[y,m]=k.split('-').map(Number);return mesKey(new Date(y,m-1+n,1))}
@@ -844,8 +893,9 @@ function atualizarIndicadorNav(){
 }
 addEventListener('resize',atualizarIndicadorNav);
 function seletorMes(){
-  return `<div class="row" style="margin-bottom:6px"><button style="all:unset;font-size:26px;padding:6px 12px;color:var(--txt)" onclick="mudaMes(-1)">‹</button><b>${nomeMes(mesRef)}</b><button style="all:unset;font-size:26px;padding:6px 12px;color:var(--txt)" onclick="mudaMes(1)">›</button></div>`;
+  return `<div class="mesnav"><button onclick="mudaMes(-1)" aria-label="Mês anterior">‹</button><b>${nomeMes(mesRef)}</b><button onclick="mudaMes(1)" aria-label="Próximo mês">›</button></div>`;
 }
+
 function mudaMes(n){haptic(6);mesRef=addMes(mesRef,n);render()}
 
 /* o que é "dia a dia" (variável) e o que é conta fixa, por categoria */
@@ -880,19 +930,19 @@ function linhaTx(t,modo){
   const sub=[t.tipo==='ganho'?(t.diaUtilN?t.diaUtilN+'º dia útil':'Entrada'):esc(t.cat)];
   if(cc)sub.push(esc(cc.nome));else if(t.fixo&&t.tipo==='gasto')sub.push('Pix/dinheiro');
   if(t.autor&&cloudCfg)sub.push(esc(t.autor));
-  const esq=modo==='data'?`<div class="dia"><b>${+t.data.slice(8)}</b><span>${new Date(t.data+'T12:00:00').toLocaleDateString('pt-BR',{weekday:'short'}).replace('.','')}</span></div>`:`<div class="ico">${t.tipo==='ganho'?ic('renda'):catIcon(t.cat)}</div>`;
+  const esq=modo==='data'?`<div class="dia"><b>${+t.data.slice(8)}</b><span>${new Date(t.data+'T12:00:00').toLocaleDateString('pt-BR',{weekday:'short'}).replace('.','')}</span></div>`:`<div class="ico">${catBolha(t.tipo==='ganho'?'Entrada':t.cat)}</div>`;
   return `<div class="lin" onclick="${t.fixo?`editarOcorrencia('${t.id}')`:`editarLanc('${t.id}')`}">${esq}<div class="mid"><div class="tit">${esc(t.desc||t.cat)}</div><div class="sub">${sub.join(', ')}</div></div><div class="val ${t.tipo==='ganho'?'pos':''}">${t.tipo==='ganho'?'+':'−'}${R(t.valor).replace('-','')}<br>${chipStatus(t)}</div></div>`;
 }
 function vHoje(){
   const t=totais(mesRef),atual=mesKey(new Date()),dd=diaADia(mesRef);
   let h=seletorMes();
   const noite=mesRef===atual&&new Date().getHours()>=18&&!S.tx.some(x=>x.data===hojeStr());
-  h+=`<form class="conversa" onsubmit="event.preventDefault();falarDaHoje()"><input id="conversaHoje" enterkeyhint="send" autocomplete="off" placeholder="${noite?'Gastou algo hoje? Conta aqui':'Ex.: gastei 30 no ifood'}"><button type="submit" aria-label="Enviar">${ic('enviar',18)}</button></form>`;
+  h+=`<form class="conversa" onsubmit="event.preventDefault();falarDaHoje()"><span class="spark">${ic('ia',18)}</span><input id="conversaHoje" enterkeyhint="send" autocomplete="off" placeholder="${noite?'Gastou algo hoje? Conta aqui':'Ex.: gastei 30 no ifood'}"><button type="submit" aria-label="Enviar">${ic('enviar',18)}</button></form>`;
   /* hero */
   const resto=dd.teto-dd.gasto,dias=diasRestantes(mesRef),tot=diasNoMes(mesRef);
   const usado=dd.teto>0?Math.min(dd.gasto/dd.teto*100,100):0;
   if(dd.teto<=0){
-    h+=`<div class="card hero"><div class="mut">Pode gastar hoje</div><div class="big mut">—</div><div class="mut">Defina o orçamento por categoria na aba Orçamento pra eu calcular.</div></div>`;
+    h+=`<div class="card hero" style="--glow:var(--acc)"><div class="mut">Pode gastar hoje</div><div class="big mut">—</div><div class="mut">Defina o orçamento por categoria na aba Orçamento pra eu calcular.</div></div>`;
   }else{
     let titulo,valor,ritmo='';
     const passados=mesRef===atual?new Date().getDate():mesRef<atual?tot:0;
@@ -903,11 +953,12 @@ function vHoje(){
       ritmo=resto<0?`Você passou ${R(-resto)} do dia a dia deste mês.`:Math.abs(dif)<5?'Você está no ritmo certo do mês.':dif>0?`Você está ${R(dif)} abaixo do ritmo. Tá sobrando.`:`Você está ${R(-dif)} acima do ritmo. Segura um pouco.`;
     }else if(mesRef<atual){titulo='Sobrou do dia a dia';valor=resto}
     else{titulo='Dia a dia do mês';valor=dd.teto;ritmo=`Dá uns ${R(dd.teto/tot)} por dia.`}
-    const corBar=usado>=100?'var(--bad)':usado>tempo+10?'var(--warn)':'var(--ok)';
-    h+=`<div class="card hero"><div class="mut">${titulo}</div><div class="big ${valor<0?'neg':''}">${R(valor)}</div>
+    const corBar=usado>=100||valor<0?'var(--bad)':usado>tempo+10?'var(--warn)':'var(--ok)';
+    const vtxt=R(Math.abs(valor)).replace('R$ ','');
+    h+=`<div class="card hero" style="--glow:${corBar}"><div class="mut">${titulo}</div><div class="big ${valor<0?'neg':''}"><small>${valor<0?'−R$':'R$'}</small>${vtxt}</div>
     <div class="regua"><i style="width:${usado}%;background:${corBar}"></i>${passados>0&&passados<tot?`<b style="left:${tempo}%"></b>`:''}</div>
     <div class="regua-leg"><span>${R(dd.gasto)} de ${R(dd.teto)} usados</span><span>${mesRef===atual?`dia ${passados} de ${tot}`:''}</span></div>
-    ${ritmo?`<div class="ritmo">${ritmo}</div>`:''}</div>`;
+    ${ritmo?`<div class="ritmo"><i></i><span>${ritmo}</span></div>`:''}</div>`;
   }
   /* próximas contas */
   const fixos=txMes(mesRef).filter(x=>x.fixo);
@@ -920,10 +971,11 @@ function vHoje(){
   }
   /* dia a dia */
   if(dd.cats.length){
-    h+='<h2>Dia a dia</h2><div class="card">';
+    h+='<h2>Dia a dia</h2><div class="card" style="padding:4px 16px">';
     dd.cats.forEach(c=>{
       const pc=c.teto?c.gasto/c.teto*100:100;
-      h+=`<div class="item" onclick="editarOrc('${esc(c.cat)}')"><div class="row"><span>${catIcon(c.cat)} ${esc(c.cat)}</span><span class="tabular"><b>${R(c.gasto)}</b> <span class="mut">de ${c.teto?R(c.teto):'sem teto'}</span></span></div>${c.teto?`<div class="bar"><i style="width:${Math.min(pc,100)}%;background:${cor(pc)}"></i></div>`:''}</div>`;
+      const cc=pc>100?'var(--bad)':CAT_COR[catId(c.cat)];
+      h+=`<div class="catrow" onclick="editarOrc('${esc(c.cat)}')">${catBolha(c.cat)}<div class="mid"><div class="top"><span>${esc(c.cat)}</span><span class="tabular"><b>${R(c.gasto)}</b> <span class="mut">de ${c.teto?R(c.teto):'sem teto'}</span></span></div>${c.teto?`<div class="bar"><i style="width:${Math.min(pc,100)}%;background:${cc}"></i></div>`:''}</div></div>`;
     });
     h+='</div>';
   }
@@ -961,14 +1013,15 @@ function vExtrato(){
   return h;
 }
 function vRendas(){
-  let h='<h1>Rendas</h1><div class="card">';
+  let h='<h1>Rendas</h1><div class="card" style="padding:4px 16px">';
   if(!S.rendas.length)h+='<div class="empty">Nenhuma renda ainda.<br>Ex.: Salário, VR, bolsa...</div>';
   S.rendas.forEach(r=>{
-    h+=`<div class="item" onclick="editarRenda('${r.id}')"><div class="row"><span>${ic('renda')} ${esc(r.desc)}<div class="mut">${esc(r.autor||'Sem nome')}${r.ate?' · até '+r.ate.slice(5)+'/'+r.ate.slice(0,4):''}</div></span><b>${R(r.valor)}</b></div></div>`;
+    const sub=[r.diaUtil?r.diaUtil+'º dia útil':'todo dia '+(r.dia||1)];if(cloudCfg&&r.autor)sub.push(esc(r.autor));if(r.ate)sub.push('até '+r.ate.slice(5)+'/'+r.ate.slice(0,4));
+    h+=`<div class="lin" onclick="editarRenda('${r.id}')"><div class="ico">${catBolha('Entrada')}</div><div class="mid"><div class="tit">${esc(r.desc)}</div><div class="sub">${sub.join(', ')}</div></div><div class="val pos">${R(r.valor)}</div></div>`;
   });
   const pessoas=Object.entries(S.rendas.reduce((acc,r)=>{const n=r.autor||'Sem nome';acc[n]=(acc[n]||0)+(+r.valor||0);return acc},{}));
   if(pessoas.length){
-    h+=`<div class="mut" style="margin-top:8px">Renda oficial do casal: <b>${R(rendaRecorrenteMensal())}</b></div>`;
+    h+=`<div class="row" style="padding:12px 0 10px;border-top:1px solid var(--line)"><span class="mut">${cloudCfg?'Renda do casal por mês':'Total por mês'}</span><b class="tabular">${R(rendaRecorrenteMensal())}</b></div>`;
     if(pessoas.length>1)pessoas.forEach(([n,v])=>{h+=`<div class="mut">${esc(n)}: ${R(v)}</div>`});
   }
   h+='</div>';
@@ -991,10 +1044,11 @@ function vRendas(){
 }
 function vOrc(){
   const t=totais(mesRef);
-  let h=seletorMes()+'<div class="mut" style="margin-bottom:10px">Defina um teto mensal por categoria. A barra fica amarela em 80% e vermelha em 100%.</div><div class="card">';
+  let h=seletorMes()+'<div class="mut" style="margin:0 2px 12px">Toque numa categoria pra mudar o teto do mês.</div><div class="card" style="padding:4px 16px">';
   CATS.forEach(([i,c])=>{
     const teto=+S.orc[c]||0,v=t.porCat[c]||0,pc=teto?v/teto*100:0;
-    h+=`<div class="item" onclick="editarOrc('${c}')"><div class="row"><span>${ic(i)} ${c}</span><span>${R(v)} <span class="mut">/ ${teto?R(teto):'definir'}</span></span></div>${teto?`<div class="bar"><i style="width:${Math.min(pc,100)}%;background:${cor(pc,soFixo(mesRef,c))}"></i></div>`:''}</div>`;
+    const fx=soFixo(mesRef,c),bc=pc>100.5?'var(--bad)':fx?'color-mix(in srgb,var(--txt) 30%,transparent)':pc>=80?'var(--warn)':CAT_COR[i];
+    h+=`<div class="catrow" onclick="editarOrc('${c}')">${catBolha(c)}<div class="mid"><div class="top"><span>${c}</span><span class="tabular"><b>${R(v)}</b> <span class="mut">de ${teto?R(teto):'definir'}</span></span></div>${teto?`<div class="bar"><i style="width:${Math.min(pc,100)}%;background:${bc}"></i></div>`:''}</div></div>`;
   });
   h+='</div>';
   const tt=tetoTotal();

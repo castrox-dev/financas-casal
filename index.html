@@ -447,6 +447,7 @@ function gerarInsights(k){
   if(ant.gasto>0&&t.gasto>0&&t.gasto<ant.gasto*0.9){
     out.push({tone:'ok',icon:'ok',texto:`Você gastou ${Math.round((1-t.gasto/ant.gasto)*100)}% a menos que o mês passado. Mandou bem!`});
   }
+  if(k===mesKey(new Date()))avisosFatura().forEach(a=>out.push(a));
   const ordem={warn:0,info:1,ok:2};
   return out.sort((a,b)=>ordem[a.tone]-ordem[b.tone]).slice(0,3);
 }
@@ -594,6 +595,23 @@ function cicloAberto(c,ref){
   const[ny,nm]=addMesYM(y,m,1);
   return{inicio:fechEste,fim:fecharData(c,ny,nm)};
 }
+/* fatura que vence nos próximos 5 dias: a do ciclo que fechou no
+   fechamento anterior ao vencimento. */
+function avisosFatura(){
+  const out=[],hoje=new Date();hoje.setHours(0,0,0,0);
+  S.cartoes.filter(c=>c.vencimento).forEach(c=>{
+    let v=new Date(hoje.getFullYear(),hoje.getMonth(),c.vencimento);
+    if(v<hoje)v=new Date(hoje.getFullYear(),hoje.getMonth()+1,c.vencimento);
+    const dias=Math.round((v-hoje)/864e5);if(dias>5)return;
+    const fm=c.vencimento>c.fechamento?v.getMonth():v.getMonth()-1;
+    const fd=new Date(v.getFullYear(),fm,Math.min(c.fechamento,new Date(v.getFullYear(),fm+1,0).getDate()));
+    const total=txsCartaoCiclo(c,cicloAberto(c,fd)).reduce((s,t)=>s+t.valor,0);
+    if(total<=0)return;
+    const quando=dias===0?'vence hoje':dias===1?'vence amanhã':`vence em ${dias} dias (dia ${v.getDate()})`;
+    out.push({tone:'warn',icon:'alerta',texto:`Fatura do ${esc(c.nome)} ${quando}: ${R(total)}. Pague o valor total pra não cair no rotativo.`});
+  });
+  return out;
+}
 function txsCartaoCiclo(c,ciclo){
   const meses=[...new Set([ciclo.inicio.slice(0,7),ciclo.fim.slice(0,7)])];
   const seen=new Set(),out=[];
@@ -661,6 +679,9 @@ function vHoje(){
   const semBase=p.base<=0;
   const pctUsado=!semBase?Math.min(t.gasto/p.base*100,100):0;
   let h=seletorMes();
+  /* lembrete do dia: depois das 18h, se nada foi lançado hoje */
+  if(mesRef===mesKey(new Date())&&new Date().getHours()>=18&&!S.tx.some(x=>x.data===hojeStr()))
+    h+=`<div class="card" onclick="document.getElementById('fab').click()" style="cursor:pointer"><b>Gastou algo hoje?</b><div class="mut">Nada lançado ainda hoje. Toque aqui pra lançar agora, leva 3 segundos. Se não gastou nada, melhor ainda.</div></div>`;
   h+=`<div class="card"><div class="row" style="align-items:center">
   <div style="flex:1">
   <div class="mut">Pode gastar hoje</div>
@@ -903,6 +924,8 @@ function editarRenda(id){
   <input id="rev" inputmode="decimal" placeholder="Valor por mês (R$)" value="${r.valor||''}">
   <input id="rea" placeholder="De quem é essa renda (nome)" value="${esc(r.autor||cloudCfg?.nome||'')}">
   <input id="redia" type="number" min="1" max="31" placeholder="Dia do mês que recebe" value="${r.dia||1}">
+  <div class="mut" style="margin-bottom:6px">Ou cai no dia útil (ex.: 5 = 5º dia útil). Se preencher, vale este no lugar do dia fixo.</div>
+  <input id="redu" type="number" min="1" max="23" placeholder="Nº do dia útil (opcional)" value="${r.diaUtil||''}">
   <div class="mut" style="margin-bottom:6px">Último mês (se for temporário, ex.: bico com contrato). Deixe vazio se for permanente.</div>
   <input id="reate" type="month" value="${r.ate||''}">
   <button class="btn" onclick="salvarRenda()">Salvar</button>
@@ -915,7 +938,8 @@ function salvarRenda(){
   if(!desc||!(valor>0)){haptic(20);return}
   const dia=Math.min(Math.max(+document.getElementById('redia').value||1,1),31);
   const ate=document.getElementById('reate').value||'';
-  const o={...(RE||{}),id:RE?RE.id:uid(),desc,valor,autor:autor||null,dia,ate,desde:RE?RE.desde:mesKey(new Date())};
+  const du=+document.getElementById('redu').value||0;
+  const o={...(RE||{}),id:RE?RE.id:uid(),desc,valor,autor:autor||null,dia,diaUtil:du>0?Math.min(du,23):null,ate,desde:RE?RE.desde:mesKey(new Date())};
   upsertItem('rendas',o);
   recomputeOrcFromDistribuicao();save();cloudSaveConfig();
   haptic();flashSucesso();fechar();render();
@@ -1022,7 +1046,9 @@ function editarFixo(id){
   <select id="fc">${CATS.map(([i,c])=>`<option ${c===f.cat?'selected':''}>${c}</option>`).join('')}</select>
   <input id="fdia" type="number" min="1" max="31" placeholder="Dia do mês" value="${f.dia||1}">
   ${S.cartoes.length?`<div class="mut" style="margin-bottom:6px">Forma de pagamento</div><select id="ffp">${pagOpts}</select>`:''}
-  <div class="mut" style="margin-bottom:6px">Último mês (parcelas). Deixe vazio se for permanente.</div>
+  <div class="mut" style="margin-bottom:6px">Parcelado? Diga qual parcela é em ${nomeMes(mesRef)} e o total — o app calcula o último mês e mostra "4/18".</div>
+  <div class="row" style="gap:8px"><input id="fpn" type="number" min="1" placeholder="Parcela nº" value="${f.parcelaTotal&&f.parcelaInicio?mesesEntre(f.parcelaInicio,mesRef)+1:''}"><input id="fpt" type="number" min="1" placeholder="de (total)" value="${f.parcelaTotal||''}"></div>
+  <div class="mut" style="margin-bottom:6px">Ou o último mês. Deixe tudo vazio se for permanente.</div>
   <input id="fate" type="month" value="${f.ate||''}">
   <button class="btn" onclick="salvarFixo()">Salvar</button>
   ${F?'<button class="btn del" onclick="apagarFixo()">Apagar</button>':''}`);
@@ -1032,6 +1058,9 @@ function salvarFixo(){
   if(!(v>0)||!d)return;
   const fp=document.getElementById('ffp');
   const o={...(F||{}),id:F?F.id:uid(),desc:d,valor:v,cat:document.getElementById('fc').value,dia:Math.min(Math.max(+document.getElementById('fdia').value||1,1),31),ate:document.getElementById('fate').value||'',cartao:fp?(fp.value||null):null,autor:(F&&F.autor)||cloudCfg?.nome||null,desde:F?F.desde:mesKey(new Date())};
+  const pn=+document.getElementById('fpn').value||0,pt=+document.getElementById('fpt').value||0;
+  if(pn>0&&pt>=pn){o.parcelaTotal=pt;o.parcelaInicio=addMes(mesRef,-(pn-1));o.ate=addMes(o.parcelaInicio,pt-1);if(!o.desde||o.desde>mesRef)o.desde=mesRef}
+  else if(!pn&&!pt){o.parcelaTotal=null;o.parcelaInicio=null}
   upsertItem('fixos',o);
   haptic();flashSucesso();fechar();render();
 }

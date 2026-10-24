@@ -802,7 +802,7 @@ function vMais(){
     </div>`;
   });
   h+=`<button class="btn sec" style="margin:12px 0 0" onclick="editarMeta()">+ Nova meta</button></div>`;
-  h+=`<h2>Backup</h2><div class="card"><div class="mut" style="margin-bottom:10px">Seus dados ficam só neste aparelho${cloudCfg?' (e sincronizados na nuvem do casal)':''}. Se limpar os dados do Safari, perde tudo, então exporte de vez em quando.</div><button class="btn" onclick="exportar()">Exportar backup</button><button class="btn sec" onclick="document.getElementById('imp').click()">Importar backup</button><input type="file" id="imp" accept=".json,application/json" class="hidden" onchange="importar(this)"></div>`;
+  h+=`<h2>Backup</h2><div class="card"><div class="mut" style="margin-bottom:10px">Seus dados ficam só neste aparelho${cloudCfg?' (e sincronizados na nuvem do casal)':''}. Se limpar os dados do Safari, perde tudo, então exporte de vez em quando.</div><button class="btn" onclick="exportar()">Exportar backup</button><button class="btn sec" onclick="document.getElementById('imp').click()">Importar backup ou plano</button><input type="file" id="imp" accept=".json,application/json" class="hidden" onchange="importar(this)"></div>`;
   return h;
 }
 
@@ -1083,10 +1083,45 @@ function exportar(){
   if(navigator.canShare&&navigator.canShare({files:[f]})){navigator.share({files:[f]}).catch(()=>{})}
   else{const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=f.name;a.click()}
 }
+/* Plano: arquivo {tipo:'plano'} que SOMA ao que já existe em vez de
+   substituir. Cartões, fixos e rendas com o mesmo nome são atualizados
+   (não duplicam); fixos apontam pro cartão pelo nome; o orçamento só mexe
+   nas categorias que o plano traz. Assim dá pra aplicar o plano de cada
+   mês sem perder lançamentos. */
+function mesclarPlano(p){
+  const norm=s=>String(s||'').trim().toLowerCase();
+  const autor=cloudCfg?.nome||null;
+  const idCartao={};
+  (p.cartoes||[]).forEach(c=>{
+    const ex=S.cartoes.find(x=>norm(x.nome)===norm(c.nome));
+    const o=ex?{...ex,limite:c.limite}:{id:uid(),nome:c.nome,final:'',limite:c.limite,fechamento:c.fechamento||1,vencimento:c.vencimento||null,cor:c.cor||CARD_COLORS[S.cartoes.length%CARD_COLORS.length].join('|')};
+    upsertItem('cartoes',o);idCartao[norm(c.nome)]=o.id;
+  });
+  (p.rendas||[]).forEach(r=>{
+    const ex=S.rendas.find(x=>norm(x.desc)===norm(r.desc));
+    upsertItem('rendas',{id:ex?ex.id:uid(),desc:r.desc,valor:r.valor,autor:(ex&&ex.autor)||autor,dia:r.dia||1,ate:r.ate||'',desde:ex?ex.desde:(r.desde||mesKey(new Date()))});
+  });
+  (p.fixos||[]).forEach(f=>{
+    const ex=S.fixos.find(x=>norm(x.desc)===norm(f.desc));
+    upsertItem('fixos',{id:ex?ex.id:uid(),desc:f.desc,valor:f.valor,cat:f.cat,dia:f.dia||1,ate:f.ate||'',cartao:f.cartao?(idCartao[norm(f.cartao)]||null):null,autor:(ex&&ex.autor)||autor,desde:ex?ex.desde:(f.desde||mesKey(new Date()))});
+  });
+  (p.metas||[]).forEach(m=>{
+    const ex=S.metas.find(x=>norm(x.nome)===norm(m.nome));
+    upsertItem('metas',{id:ex?ex.id:uid(),nome:m.nome,alvo:m.alvo,atual:ex?ex.atual:(m.atual||0)});
+  });
+  Object.entries(p.orc||{}).forEach(([c,v])=>S.orc[c]=v);
+  save();cloudSaveConfig();
+}
 function importar(inp){
   const f=inp.files[0];if(!f)return;
   const r=new FileReader();
-  r.onload=()=>{try{const d=JSON.parse(r.result);if(!Array.isArray(d.tx))throw 0;if(confirm('Substituir seus dados atuais pelo backup?')){S=Object.assign({},def,d);save();render()}}catch(e){alert('Arquivo inválido.')}};
+  r.onload=()=>{try{const d=JSON.parse(r.result);
+    if(d.tipo==='plano'){
+      const n=k=>(d[k]||[]).length;
+      if(confirm(`Aplicar "${d.nome||'plano'}"?\n\nSoma ao que você já tem (não apaga nada): ${n('rendas')} rendas, ${n('fixos')} gastos fixos, ${n('cartoes')} cartões, ${n('metas')} metas e o orçamento por categoria.`)){mesclarPlano(d);haptic();flashSucesso();tab='hoje';render()}
+      return;
+    }
+    if(!Array.isArray(d.tx))throw 0;if(confirm('Substituir seus dados atuais pelo backup?')){S=Object.assign({},def,d);save();render()}}catch(e){alert('Arquivo inválido.')}};
   r.readAsText(f);inp.value='';
 }
 

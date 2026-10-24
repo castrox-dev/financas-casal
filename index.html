@@ -1145,6 +1145,17 @@ function mesclarPlano(p){
   Object.entries(p.orc||{}).forEach(([c,v])=>S.orc[c]=v);
   save();cloudSaveConfig();
 }
+/* backup substitui tudo: na nuvem do casal também apaga o que não está
+   no arquivo e sobe o que está, senão os itens antigos voltariam. */
+function substituirNaNuvem(antes){
+  if(!cloudCfg)return;
+  ['tx','fixos','metas','cartoes','rendas','chat'].forEach(col=>{
+    const novos=new Set((S[col]||[]).map(x=>String(x.id)));
+    (antes[col]||[]).forEach(x=>{if(!novos.has(String(x.id)))cloudRemove(col,x.id)});
+    (S[col]||[]).forEach(x=>cloudUpsert(col,x));
+  });
+  cloudSaveConfig();
+}
 function importar(inp){
   const f=inp.files[0];if(!f)return;
   const r=new FileReader();
@@ -1154,7 +1165,7 @@ function importar(inp){
       if(confirm(`Aplicar "${d.nome||'plano'}"?\n\nSoma ao que você já tem (não apaga nada): ${n('rendas')} rendas, ${n('fixos')} gastos fixos, ${n('cartoes')} cartões, ${n('metas')} metas e o orçamento por categoria.`)){mesclarPlano(d);haptic();flashSucesso();tab='hoje';render()}
       return;
     }
-    if(!Array.isArray(d.tx))throw 0;if(confirm('Substituir seus dados atuais pelo backup?')){S=Object.assign({},def,d);save();render()}}catch(e){alert('Arquivo inválido.')}};
+    if(!Array.isArray(d.tx))throw 0;if(confirm('Substituir seus dados atuais pelo backup?')){const antes=S;S=Object.assign({},def,d);save();substituirNaNuvem(antes);render()}}catch(e){alert('Arquivo inválido.')}};
   r.readAsText(f);inp.value='';
 }
 

@@ -197,7 +197,7 @@ const FIREBASE_CFG={apiKey:"AIzaSyCIKXGNO5PSn5P2BYAiqLDZiC-uIAYfYgI",authDomain:
    chave do Gemini em segredo no servidor e só aceita pedidos vindos deste
    site (checa a origem). O app nunca vê a chave real. */
 const IA_PROXY_URL="https://financas-casal-ia.supleki-api.workers.dev";
-const def={tx:[],orc:{},fixos:[],salario:0,rendas:[],metas:[],cartoes:[],distribuicao:[],mudanca:null,chat:[]};
+const def={tx:[],orc:{},fixos:[],salario:0,rendas:[],metas:[],cartoes:[],distribuicao:[],mudanca:null,chat:[],ajustes:{}};
 let S=load();
 function load(){try{return Object.assign({},def,JSON.parse(localStorage.getItem(KEY)||'{}'))}catch(e){return {...def}}}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
@@ -260,7 +260,7 @@ function ligarListeners(){
   cloudListeners.push(FS.onSnapshot(FS.doc(db,'casais',codigo),snap=>{
     const d=snap.data();
     if(d){
-      S.salario=d.salario||0;S.orc=d.orc||{};S.distribuicao=d.distribuicao||[];S.mudanca=d.mudanca||null;
+      S.salario=d.salario||0;S.orc=d.orc||{};S.distribuicao=d.distribuicao||[];S.mudanca=d.mudanca||null;S.ajustes=d.ajustes||{};
       migrarSalarioParaRendas();
       recomputeOrcFromDistribuicao();save();render();
     }
@@ -284,7 +284,7 @@ function cloudRemove(col,id){
 }
 function cloudSaveConfig(){
   if(!cloudOn()){if(cloudCfg)pendingCloudSync=true;return}
-  FS.setDoc(FS.doc(db,'casais',cloudCfg.codigo),{salario:0,orc:S.orc,distribuicao:S.distribuicao,mudanca:S.mudanca},{merge:true}).catch(e=>console.error('[cloud]',e));
+  FS.setDoc(FS.doc(db,'casais',cloudCfg.codigo),{salario:0,orc:S.orc,distribuicao:S.distribuicao,mudanca:S.mudanca,ajustes:S.ajustes||{}},{merge:true}).catch(e=>console.error('[cloud]',e));
 }
 function upsertItem(colKey,item){
   const arr=S[colKey];
@@ -338,11 +338,15 @@ function desconectarCloud(force){
 
 /* ---------- regras ---------- */
 /* fixos e rendas viram lançamentos virtuais no mês consultado */
+/* ajustes por mês: S.ajustes['2026-11']['fx<id>'] = {valor?, ok?}
+   muda o valor só daquele mês e marca se já pagou / já caiu. */
+function ajusteDe(k,id){return((S.ajustes||{})[k]||{})[id]||null}
+function aplicarAjuste(k,o){const a=ajusteDe(k,o.id);if(a){if(a.valor!=null)o.valor=a.valor;o.ok=!!a.ok;o.ajustado=a.valor!=null}return o}
 function fixosDoMes(k){
-  return S.fixos.filter(f=>!f.ate||f.ate>=k).filter(f=>!f.desde||f.desde<=k).map(f=>({id:'fx'+f.id,fixo:true,tipo:'gasto',valor:f.valor,cat:f.cat,desc:f.desc,cartao:f.cartao||null,autor:f.autor||null,data:k+'-'+String(Math.min(f.dia||1,diasNoMes(k))).padStart(2,'0')}));
+  return S.fixos.filter(f=>!f.ate||f.ate>=k).filter(f=>!f.desde||f.desde<=k).map(f=>({id:'fx'+f.id,fixo:true,tipo:'gasto',valor:f.valor,cat:f.cat,desc:f.desc,cartao:f.cartao||null,autor:f.autor||null,data:k+'-'+String(Math.min(f.dia||1,diasNoMes(k))).padStart(2,'0')})).map(o=>aplicarAjuste(k,o));
 }
 function rendasDoMes(k){
-  return S.rendas.filter(r=>!r.ate||r.ate>=k).filter(r=>!r.desde||r.desde<=k).map(r=>({id:'rd'+r.id,fixo:true,tipo:'ganho',valor:r.valor,cat:'Renda',desc:r.desc,autor:r.autor||null,data:k+'-'+String(Math.min(r.dia||1,diasNoMes(k))).padStart(2,'0')}));
+  return S.rendas.filter(r=>!r.ate||r.ate>=k).filter(r=>!r.desde||r.desde<=k).map(r=>({id:'rd'+r.id,fixo:true,tipo:'ganho',valor:r.valor,cat:'Renda',desc:r.desc,autor:r.autor||null,data:k+'-'+String(Math.min(r.dia||1,diasNoMes(k))).padStart(2,'0')})).map(o=>aplicarAjuste(k,o));
 }
 function txMes(k){
   const reais=S.tx.filter(t=>t.data.startsWith(k));
@@ -682,7 +686,13 @@ function vHoje(){
 }
 function vExtrato(){
   const l=txMes(mesRef);
-  let h=seletorMes()+'<div class="card">';
+  let h=seletorMes();
+  const pend=l.filter(t=>t.fixo&&!t.ok);
+  if(pend.length){
+    const pg=pend.filter(t=>t.tipo==='gasto').reduce((s,t)=>s+t.valor,0),rc=pend.filter(t=>t.tipo==='ganho').reduce((s,t)=>s+t.valor,0);
+    h+=`<div class="card"><div class="row"><div><div class="mut">Ainda a pagar</div><b class="tabular">${R(pg)}</b></div><div style="text-align:right"><div class="mut">Ainda a receber</div><b class="tabular pos">${R(rc)}</b></div></div><div class="mut" style="margin-top:6px">Toque num fixo ou renda pra marcar que já pagou/caiu ou mudar o valor deste mês.</div></div>`;
+  }
+  h+='<div class="card">';
   if(!l.length)h+='<div class="empty">Sem lançamentos neste mês.</div>';
   l.forEach(t=>{
     const d=t.data.slice(8)+'/'+t.data.slice(5,7);
@@ -690,7 +700,8 @@ function vExtrato(){
     const sub=[d,esc(t.cat)];
     if(cc)sub.push(esc(cc.nome));
     if(t.autor)sub.push(esc(t.autor));
-    h+=`<div class="item" ${t.fixo?'':`onclick="editarLanc('${t.id}')"`}><div class="row"><div>${t.tipo==='ganho'?ic('renda'):catIcon(t.cat)} ${esc(t.desc||t.cat)}${t.fixo?' <span class="mut">(fixo)</span>':''}<div class="mut">${sub.join(' · ')}</div></div><b class="tabular ${t.tipo==='ganho'?'pos':''}">${t.tipo==='ganho'?'+':'-'}${R(t.valor).replace('-','')}</b></div></div>`;
+    const st=t.fixo?(t.ok?` <span class="pos">✓ ${t.tipo==='ganho'?'caiu':'pago'}</span>`:` <span class="mut">(${t.tipo==='ganho'?'a receber':'a pagar'})</span>`)+(t.ajustado?' <span class="mut">· valor do mês</span>':''):'';
+    h+=`<div class="item" onclick="${t.fixo?`editarOcorrencia('${t.id}')`:`editarLanc('${t.id}')`}"><div class="row"><div>${t.tipo==='ganho'?ic('renda'):catIcon(t.cat)} ${esc(t.desc||t.cat)}${st}<div class="mut">${sub.join(' · ')}</div></div><b class="tabular ${t.tipo==='ganho'?'pos':''}">${t.tipo==='ganho'?'+':'-'}${R(t.valor).replace('-','')}</b></div></div>`;
   });
   return h+'</div>';
 }
@@ -812,6 +823,28 @@ function fechar(){document.getElementById('modal').classList.remove('show')}
 document.getElementById('modal').addEventListener('click',e=>{if(e.target.id==='modal')fechar()});
 let L={tipo:'gasto',cat:'Comida'};
 function abrirLanc(){L={tipo:'gasto',cat:'Comida',cartao:null,id:null};formLanc('')}
+let OC=null;
+function editarOcorrencia(id){
+  const t=txMes(mesRef).find(x=>x.id===id);if(!t)return;
+  const ganho=t.tipo==='ganho',base=(ganho?S.rendas:S.fixos).find(x=>(ganho?'rd':'fx')+x.id===id);
+  OC={id,ok:!!t.ok,ganho,baseId:base?base.id:null,padrao:base?base.valor:t.valor};
+  abrir(`<h1>${esc(t.desc)}</h1><div class="mut" style="margin-bottom:10px">${nomeMes(mesRef)} · valor de sempre ${R(OC.padrao)}</div>
+  <input id="ocv" inputmode="decimal" placeholder="Valor deste mês (R$)" value="${String(t.valor).replace('.',',')}">
+  <button class="btn ${OC.ok?'':'sec'}" id="ocok" onclick="OC.ok=!OC.ok;this.className='btn '+(OC.ok?'':'sec');this.textContent=OC.ok?'✓ ${ganho?'Já caiu':'Já paguei'}':'${ganho?'Marcar que já caiu':'Marcar que já paguei'}'">${OC.ok?'✓ '+(ganho?'Já caiu':'Já paguei'):(ganho?'Marcar que já caiu':'Marcar que já paguei')}</button>
+  <button class="btn" onclick="salvarOcorrencia()">Salvar este mês</button>
+  ${t.ajustado?'<button class="btn sec" onclick="salvarOcorrencia(true)">Voltar pro valor de sempre</button>':''}
+  ${OC.baseId?`<button class="btn sec" onclick="fechar();${ganho?'editarRenda':'editarFixo'}('${OC.baseId}')">Editar para todos os meses</button>`:''}`);
+}
+function salvarOcorrencia(resetar){
+  const v=numLivre(document.getElementById('ocv').value);
+  if(!resetar&&!(v>=0)){haptic(20);return}
+  S.ajustes=S.ajustes||{};const m=S.ajustes[mesRef]=S.ajustes[mesRef]||{};
+  const a={ok:OC.ok};
+  if(!resetar&&Math.abs(v-OC.padrao)>0.004)a.valor=v;
+  if(!a.ok&&a.valor==null)delete m[OC.id];else m[OC.id]=a;
+  if(!Object.keys(m).length)delete S.ajustes[mesRef];
+  save();cloudSaveConfig();haptic();flashSucesso();fechar();render();
+}
 function editarLanc(id){const t=S.tx.find(x=>x.id===id);if(!t)return;L={tipo:t.tipo,cat:t.cat,cartao:t.cartao||null,id:t.id};formLanc(t)}
 function formLanc(t){
   t=t||{};

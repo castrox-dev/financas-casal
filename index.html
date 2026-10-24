@@ -1256,6 +1256,12 @@ function mesclarPlano(p){
     upsertItem('metas',{id:ex?ex.id:uid(),nome:m.nome,alvo:m.alvo,atual:m.atual!=null?m.atual:(ex?ex.atual:0)});
   });
   Object.entries(p.orc||{}).forEach(([c,v])=>S.orc[c]=v);
+  /* remover: {cartoes:['Nubank'], metas:['...'], fixos:[...], rendas:[...]} por nome */
+  const rm=p.remover||{},campo={cartoes:'nome',metas:'nome',fixos:'desc',rendas:'desc'};
+  Object.entries(campo).forEach(([col,k])=>(rm[col]||[]).forEach(nome=>S[col].filter(x=>norm(x[k])===norm(nome)).forEach(x=>{
+    if(col==='cartoes')S.fixos.filter(f=>f.cartao===x.id).forEach(f=>upsertItem('fixos',{...f,cartao:null}));
+    removeItem(col,x.id);
+  })));
   save();cloudSaveConfig();
 }
 /* backup substitui tudo: na nuvem do casal também apaga o que não está
@@ -1275,7 +1281,7 @@ function importar(inp){
   r.onload=()=>{try{const d=JSON.parse(r.result);
     if(d.tipo==='plano'){
       const n=k=>(d[k]||[]).length;
-      if(confirm(`Aplicar "${d.nome||'plano'}"?\n\nSoma ao que você já tem (não apaga nada): ${n('rendas')} rendas, ${n('fixos')} gastos fixos, ${n('cartoes')} cartões, ${n('metas')} metas e o orçamento por categoria.`)){mesclarPlano(d);haptic();flashSucesso();tab='hoje';render()}
+      if(confirm(`Aplicar "${d.nome||'plano'}"?\n\nSoma ao que você já tem: ${n('rendas')} rendas, ${n('fixos')} gastos fixos, ${n('cartoes')} cartões, ${n('metas')} metas e o orçamento por categoria.${d.remover?'\n\nRemove: '+Object.values(d.remover).flat().join(', ')+'.':''}`)){mesclarPlano(d);haptic();flashSucesso();tab='hoje';render()}
       return;
     }
     if(!Array.isArray(d.tx))throw 0;if(confirm('Substituir seus dados atuais pelo backup?')){const antes=S;S=Object.assign({},def,d);save();substituirNaNuvem(antes);render()}}catch(e){alert('Arquivo inválido.')}};

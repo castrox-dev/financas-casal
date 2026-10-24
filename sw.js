@@ -1,4 +1,4 @@
-const CACHE = 'financas-v25';
+const CACHE = 'financas-v26';
 const ESTADO = 'financas-estado'; // escrito pelo app; o push lê daqui
 const FILES = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png', './icon-180.png'];
 

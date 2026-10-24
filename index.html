@@ -625,7 +625,8 @@ function avisosFatura(){
   return out;
 }
 /* ---------- notificações push ----------
-   O aparelho se inscreve e guarda a inscrição em Firestore push/{id}
+   O aparelho se inscreve e guarda a inscrição em Firestore
+   casais/avisos-push/inscricoes/{id} (as regras só liberam casais/)
    (login anônimo via REST, funciona mesmo sem o modo casal). Um GitHub
    Actions agendado manda um "toque" de manhã e à noite; o service worker
    monta o texto com o estado que o app deixa salvo no Cache Storage. */
@@ -637,7 +638,7 @@ function b64ToU8(b){const p='='.repeat((4-b.length%4)%4),r=atob((b+p).replace(/-
 async function gravarInscricao(cfg,sub){
   const a=await fetch('https://identitytoolkit.googleapis.com/v1/accounts:signUp?key='+FIREBASE_CFG.apiKey,{method:'POST',headers:{'Content-Type':'application/json'},body:'{"returnSecureToken":true}'}).then(r=>r.json());
   if(!a.idToken)throw new Error('login');
-  const url=`https://firestore.googleapis.com/v1/projects/${FIREBASE_CFG.projectId}/databases/(default)/documents/push/${cfg.id}`;
+  const url=`https://firestore.googleapis.com/v1/projects/${FIREBASE_CFG.projectId}/databases/(default)/documents/casais/avisos-push/inscricoes/${cfg.id}`;
   const r=await fetch(url,{method:'PATCH',headers:{'Content-Type':'application/json','Authorization':'Bearer '+a.idToken},body:JSON.stringify({fields:{sub:{stringValue:JSON.stringify(sub)},manha:{booleanValue:!!cfg.manha},noite:{booleanValue:!!cfg.noite},atualizado:{timestampValue:new Date().toISOString()}}})});
   if(!r.ok)throw new Error('firestore '+r.status);
 }

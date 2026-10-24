@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       tipo:
-        description: 'manha ou noite'
+        description: 'manha, noite ou teste'
         default: 'manha'
 
 jobs:

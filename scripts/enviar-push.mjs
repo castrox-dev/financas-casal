@@ -1,5 +1,5 @@
 process.on('unhandledRejection', e => { console.log('::error::' + (e && e.stack || e)); process.exit(1); });
-// Manda o "toque" de notificação pra cada aparelho inscrito em Firestore push/{id}.
+// Manda o "toque" de notificação pra cada aparelho inscrito em casais/avisos-push/inscricoes/{id}.
 // O texto é montado no próprio aparelho (sw.js) com os números de lá.
 import { readFileSync } from 'node:fs';
 import webpush from 'web-push';
@@ -27,12 +27,21 @@ const login = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:si
 if (!login.idToken) erro('Login anônimo falhou: ' + JSON.stringify(login));
 const auth = { Authorization: 'Bearer ' + login.idToken };
 const base = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents`;
+// inscrições moram dentro de casais/ porque as regras do Firestore só liberam esse caminho
+const col = `${base}/casais/avisos-push/inscricoes`;
+if (process.env.TIPO === 'teste') {
+  const w = await fetch(`${col}/teste-actions`, { method: 'PATCH', headers: { ...auth, 'Content-Type': 'application/json' }, body: '{"fields":{"t":{"stringValue":"ok"}}}' });
+  const l = await fetch(col, { headers: auth });
+  const d = await fetch(`${col}/teste-actions`, { method: 'DELETE', headers: auth });
+  console.log(`::notice::teste escrita=${w.status} leitura=${l.status} apagar=${d.status}`);
+  process.exit(w.ok && l.ok ? 0 : 1);
+}
 
 const docs = [];
 let pageToken = '';
 do {
-  const r = await fetch(`${base}/push?pageSize=300${pageToken ? '&pageToken=' + pageToken : ''}`, { headers: auth });
-  if (!r.ok) erro('Não consegui ler push/ no Firestore: ' + r.status + ' ' + (await r.text()));
+  const r = await fetch(`${col}?pageSize=300${pageToken ? '&pageToken=' + pageToken : ''}`, { headers: auth });
+  if (!r.ok) erro('Não consegui ler as inscrições no Firestore: ' + r.status + ' ' + (await r.text()));
   const j = await r.json();
   docs.push(...(j.documents || []));
   pageToken = j.nextPageToken || '';

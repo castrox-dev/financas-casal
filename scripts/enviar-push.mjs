@@ -1,13 +1,16 @@
+process.on('unhandledRejection', e => { console.log('::error::' + (e && e.stack || e)); process.exit(1); });
 // Manda o "toque" de notificação pra cada aparelho inscrito em Firestore push/{id}.
 // O texto é montado no próprio aparelho (sw.js) com os números de lá.
 import { readFileSync } from 'node:fs';
 import webpush from 'web-push';
 
+// ::error:: / ::notice:: viram anotações no GitHub (dá pra ler pela API, sem abrir o log)
+const erro = m => { console.log('::error::' + String(m).replace(/\r?\n/g, ' ').slice(0, 900)); process.exit(1); };
+
 const tipo = process.env.TIPO === 'noite' ? 'noite' : 'manha';
 const privada = process.env.VAPID_PRIVATE;
 if (!privada) {
-  console.error('Falta o secret VAPID_PRIVATE (Settings → Secrets and variables → Actions).');
-  process.exit(1);
+  erro('Falta o secret VAPID_PRIVATE (Settings → Secrets and variables → Actions).');
 }
 
 // chave pública e config do Firebase saem do próprio app, pra não duplicar
@@ -16,12 +19,12 @@ const publica = html.match(/const VAPID_PUBLIC='([^']+)'/)[1];
 const apiKey = html.match(/apiKey:"([^"]+)"/)[1];
 const projectId = html.match(/projectId:"([^"]+)"/)[1];
 
-webpush.setVapidDetails('https://castrox-dev.github.io/financas-casal/', publica, privada);
+try { webpush.setVapidDetails('https://castrox-dev.github.io/financas-casal/', publica, privada.trim()); } catch (e) { erro('Chave VAPID inválida: ' + e.message); }
 
 const login = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${apiKey}`, {
   method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"returnSecureToken":true}',
 }).then(r => r.json());
-if (!login.idToken) { console.error('Login anônimo falhou:', JSON.stringify(login)); process.exit(1); }
+if (!login.idToken) erro('Login anônimo falhou: ' + JSON.stringify(login));
 const auth = { Authorization: 'Bearer ' + login.idToken };
 const base = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents`;
 
@@ -29,7 +32,7 @@ const docs = [];
 let pageToken = '';
 do {
   const r = await fetch(`${base}/push?pageSize=300${pageToken ? '&pageToken=' + pageToken : ''}`, { headers: auth });
-  if (!r.ok) { console.error('Não consegui ler push/ no Firestore:', r.status, await r.text()); process.exit(1); }
+  if (!r.ok) erro('Não consegui ler push/ no Firestore: ' + r.status + ' ' + (await r.text()));
   const j = await r.json();
   docs.push(...(j.documents || []));
   pageToken = j.nextPageToken || '';
@@ -50,9 +53,9 @@ for (const d of docs) {
       await fetch(`https://firestore.googleapis.com/v1/${d.name}`, { method: 'DELETE', headers: auth });
       removidos++;
     } else {
-      console.error('Falha ao enviar:', e.statusCode, e.body);
+      console.log('::warning::Falha ao enviar: ' + e.statusCode + ' ' + String(e.body).slice(0, 300));
       falhas++;
     }
   }
 }
-console.log(`tipo=${tipo} aparelhos=${docs.length} enviados=${enviados} desligados=${pulados} removidos=${removidos} falhas=${falhas}`);
+console.log(`::notice::tipo=${tipo} aparelhos=${docs.length} enviados=${enviados} desligados=${pulados} removidos=${removidos} falhas=${falhas}`);
